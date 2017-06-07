@@ -1,0 +1,10 @@
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.exe.config
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.exe
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.pdb
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.MainForm.resources
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.Properties.Resources.resources
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.GenerateResource.Cache
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.exe
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.pdb
+c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.ErrorLogView.resources
+C:\Users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.AboutForm.resources
