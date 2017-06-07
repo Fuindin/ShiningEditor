@@ -108,14 +108,18 @@ namespace ShiningEditor
                             PopulateShiningCurrentGold();
                             break;
 
-                        // Add cases here
+                            // Add cases here
                     }
                 }
                 else
-                    saveStateFileTb.Text = "";
+                {
+                    saveStateFileTb.Text = string.Empty;
+                }
             }
             else
+            {
                 MessageBox.Show("You must first select a Phantasy Star game from the menu so the correct game data is loaded.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void shiningCharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
