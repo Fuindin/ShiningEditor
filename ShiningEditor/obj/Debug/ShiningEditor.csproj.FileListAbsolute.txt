@@ -8,3 +8,14 @@ c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor
 c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.pdb
 c:\users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.ErrorLogView.resources
 C:\Users\lamin\documents\visual studio 2012\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.AboutForm.resources
+E:\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.exe.config
+E:\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.exe
+E:\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.pdb
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.AboutForm.resources
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.ErrorLogView.resources
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.MainForm.resources
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.Properties.Resources.resources
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.GenerateResource.cache
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.CoreCompileInputs.cache
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.exe
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.pdb
