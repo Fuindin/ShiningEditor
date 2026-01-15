@@ -1,11 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26430.12
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34723.18
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShiningEditor", "ShiningEditor\ShiningEditor.csproj", "{A989E911-FC45-4495-B80B-7A344F5A6B53}"
-EndProject
-Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "ShiningEditorSetup", "ShiningEditorSetup\ShiningEditorSetup.vdproj", "{94D20EB6-FEEE-4A5D-9044-2F199C897674}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,11 +24,6 @@ Global
 		{A989E911-FC45-4495-B80B-7A344F5A6B53}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A989E911-FC45-4495-B80B-7A344F5A6B53}.SingleImage|Any CPU.ActiveCfg = Release|Any CPU
 		{A989E911-FC45-4495-B80B-7A344F5A6B53}.SingleImage|Any CPU.Build.0 = Release|Any CPU
-		{94D20EB6-FEEE-4A5D-9044-2F199C897674}.CD_ROM|Any CPU.ActiveCfg = Release
-		{94D20EB6-FEEE-4A5D-9044-2F199C897674}.Debug|Any CPU.ActiveCfg = Debug
-		{94D20EB6-FEEE-4A5D-9044-2F199C897674}.DVD-5|Any CPU.ActiveCfg = Debug
-		{94D20EB6-FEEE-4A5D-9044-2F199C897674}.Release|Any CPU.ActiveCfg = Release
-		{94D20EB6-FEEE-4A5D-9044-2F199C897674}.SingleImage|Any CPU.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
