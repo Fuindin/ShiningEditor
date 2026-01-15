@@ -35,6 +35,8 @@
             this.gameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.shiningInTheDarknessToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.shiningForceToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.shiningForce2ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.shiningForceCDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.helpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.viewErrorLogToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.clearErrorLogToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -89,6 +91,10 @@
             this.shiningPic = new System.Windows.Forms.PictureBox();
             this.openFD = new System.Windows.Forms.OpenFileDialog();
             this.shiningForcePanel = new System.Windows.Forms.Panel();
+            this.shiningForceMagicLB = new System.Windows.Forms.ListBox();
+            this.label24 = new System.Windows.Forms.Label();
+            this.shiningForceItemsLB = new System.Windows.Forms.ListBox();
+            this.label8 = new System.Windows.Forms.Label();
             this.shiningForceNewDefenseTb = new System.Windows.Forms.TextBox();
             this.shiningForceNewMoveTb = new System.Windows.Forms.TextBox();
             this.updShiningForceSaveStateBtn = new System.Windows.Forms.Button();
@@ -132,15 +138,141 @@
             this.shiningForceCharacterCmb = new System.Windows.Forms.ComboBox();
             this.label23 = new System.Windows.Forms.Label();
             this.shiningForcePic = new System.Windows.Forms.PictureBox();
-            this.label8 = new System.Windows.Forms.Label();
-            this.shiningForceItemsLB = new System.Windows.Forms.ListBox();
-            this.shiningForceMagicLB = new System.Windows.Forms.ListBox();
-            this.label24 = new System.Windows.Forms.Label();
+            this.shiningForce2Panel = new System.Windows.Forms.Panel();
+            this.label65 = new System.Windows.Forms.Label();
+            this.shiningForce2NewAgilityEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurAgilityEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewMoveBaseTb = new System.Windows.Forms.TextBox();
+            this.label64 = new System.Windows.Forms.Label();
+            this.shiningForce2CurMoveBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewDefenseEquipTb = new System.Windows.Forms.TextBox();
+            this.label63 = new System.Windows.Forms.Label();
+            this.shiningForce2CurDefenseEquipTb = new System.Windows.Forms.TextBox();
+            this.label62 = new System.Windows.Forms.Label();
+            this.shiningForce2NewAttackEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurAttackEquipTb = new System.Windows.Forms.TextBox();
+            this.label61 = new System.Windows.Forms.Label();
+            this.shiningForce2DefeatsTb = new System.Windows.Forms.TextBox();
+            this.label60 = new System.Windows.Forms.Label();
+            this.shiningForce2KillsTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2MagicListBox = new System.Windows.Forms.ListBox();
+            this.label25 = new System.Windows.Forms.Label();
+            this.shiningForce2ItemListBox = new System.Windows.Forms.ListBox();
+            this.label30 = new System.Windows.Forms.Label();
+            this.shiningForce2NewDefenseBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewMoveEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2UpdateSaveStateBtn = new System.Windows.Forms.Button();
+            this.label31 = new System.Windows.Forms.Label();
+            this.label32 = new System.Windows.Forms.Label();
+            this.label37 = new System.Windows.Forms.Label();
+            this.label44 = new System.Windows.Forms.Label();
+            this.shiningForce2NewAttackBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewAgilityBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurDefenseBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurAttackBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurAgilityBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurMoveEquipTb = new System.Windows.Forms.TextBox();
+            this.label45 = new System.Windows.Forms.Label();
+            this.label46 = new System.Windows.Forms.Label();
+            this.label47 = new System.Windows.Forms.Label();
+            this.label48 = new System.Windows.Forms.Label();
+            this.shiningForce2NewMaxMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewPresentMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewMaxHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2NewPresentHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2MaxMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2PresentMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2MaxHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2PresentHPTb = new System.Windows.Forms.TextBox();
+            this.label49 = new System.Windows.Forms.Label();
+            this.label50 = new System.Windows.Forms.Label();
+            this.shiningForce2NewExpTb = new System.Windows.Forms.TextBox();
+            this.shiningForce2CurExpTb = new System.Windows.Forms.TextBox();
+            this.label51 = new System.Windows.Forms.Label();
+            this.label52 = new System.Windows.Forms.Label();
+            this.label53 = new System.Windows.Forms.Label();
+            this.shiningForce2LevelTb = new System.Windows.Forms.TextBox();
+            this.label54 = new System.Windows.Forms.Label();
+            this.label55 = new System.Windows.Forms.Label();
+            this.shiningForce2NewGoldTb = new System.Windows.Forms.TextBox();
+            this.label56 = new System.Windows.Forms.Label();
+            this.shiningForce2CurrentGoldTb = new System.Windows.Forms.TextBox();
+            this.label57 = new System.Windows.Forms.Label();
+            this.label58 = new System.Windows.Forms.Label();
+            this.shiningForce2CharacterCmb = new System.Windows.Forms.ComboBox();
+            this.label59 = new System.Windows.Forms.Label();
+            this.pictureBox1 = new System.Windows.Forms.PictureBox();
+            this.shiningForceCDPanel = new System.Windows.Forms.Panel();
+            this.label95 = new System.Windows.Forms.Label();
+            this.shiningForceCDUpdateSaveStateBtn = new System.Windows.Forms.Button();
+            this.shiningForceCDCurrentClassTb = new System.Windows.Forms.TextBox();
+            this.label94 = new System.Windows.Forms.Label();
+            this.shiningForceCDNewAgilityEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDAgilityEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewMoveBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDMoveBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewDefenseEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDDefenseEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewAttackEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDAttackEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDMagicListBox = new System.Windows.Forms.ListBox();
+            this.label93 = new System.Windows.Forms.Label();
+            this.shiningForceCDItemsListBox = new System.Windows.Forms.ListBox();
+            this.shiningForceCDNewDefenseBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewMoveEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewAttackBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewAgilityBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDDefenseBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDAttackBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDAgilityBaseTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDMoveEquipTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewMaxMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewPresentMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewMaxHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewPresentHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDMaxMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDPresentMPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDMaxHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDPresentHPTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDNewExperienceTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDExperienceTb = new System.Windows.Forms.TextBox();
+            this.shiningForceCDCurrentLevelTb = new System.Windows.Forms.TextBox();
+            this.label75 = new System.Windows.Forms.Label();
+            this.label76 = new System.Windows.Forms.Label();
+            this.label79 = new System.Windows.Forms.Label();
+            this.label80 = new System.Windows.Forms.Label();
+            this.label83 = new System.Windows.Forms.Label();
+            this.label84 = new System.Windows.Forms.Label();
+            this.label85 = new System.Windows.Forms.Label();
+            this.label86 = new System.Windows.Forms.Label();
+            this.label87 = new System.Windows.Forms.Label();
+            this.label88 = new System.Windows.Forms.Label();
+            this.label89 = new System.Windows.Forms.Label();
+            this.label90 = new System.Windows.Forms.Label();
+            this.label91 = new System.Windows.Forms.Label();
+            this.label92 = new System.Windows.Forms.Label();
+            this.label66 = new System.Windows.Forms.Label();
+            this.label67 = new System.Windows.Forms.Label();
+            this.label68 = new System.Windows.Forms.Label();
+            this.label69 = new System.Windows.Forms.Label();
+            this.label70 = new System.Windows.Forms.Label();
+            this.shiningForceCDNewGoldTb = new System.Windows.Forms.TextBox();
+            this.label71 = new System.Windows.Forms.Label();
+            this.shiningForceCDCurrentGoldTb = new System.Windows.Forms.TextBox();
+            this.label72 = new System.Windows.Forms.Label();
+            this.label73 = new System.Windows.Forms.Label();
+            this.shiningForceCDSelectCharacterCmb = new System.Windows.Forms.ComboBox();
+            this.label74 = new System.Windows.Forms.Label();
+            this.shiningForceCDCoverPb = new System.Windows.Forms.PictureBox();
             this.menuStrip1.SuspendLayout();
             this.shiningPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.shiningPic)).BeginInit();
             this.shiningForcePanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.shiningForcePic)).BeginInit();
+            this.shiningForce2Panel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
+            this.shiningForceCDPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.shiningForceCDCoverPb)).BeginInit();
             this.SuspendLayout();
             // 
             // menuStrip1
@@ -166,7 +298,7 @@
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(93, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(92, 22);
             this.exitToolStripMenuItem.Text = "Exit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
@@ -174,7 +306,9 @@
             // 
             this.gameToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.shiningInTheDarknessToolStripMenuItem,
-            this.shiningForceToolStripMenuItem});
+            this.shiningForceToolStripMenuItem,
+            this.shiningForce2ToolStripMenuItem,
+            this.shiningForceCDToolStripMenuItem});
             this.gameToolStripMenuItem.Name = "gameToolStripMenuItem";
             this.gameToolStripMenuItem.Size = new System.Drawing.Size(50, 20);
             this.gameToolStripMenuItem.Text = "Game";
@@ -192,6 +326,20 @@
             this.shiningForceToolStripMenuItem.Size = new System.Drawing.Size(197, 22);
             this.shiningForceToolStripMenuItem.Text = "Shining Force";
             this.shiningForceToolStripMenuItem.Click += new System.EventHandler(this.shiningForceToolStripMenuItem_Click);
+            // 
+            // shiningForce2ToolStripMenuItem
+            // 
+            this.shiningForce2ToolStripMenuItem.Name = "shiningForce2ToolStripMenuItem";
+            this.shiningForce2ToolStripMenuItem.Size = new System.Drawing.Size(197, 22);
+            this.shiningForce2ToolStripMenuItem.Text = "Shining Force 2";
+            this.shiningForce2ToolStripMenuItem.Click += new System.EventHandler(this.shiningForce2ToolStripMenuItem_Click);
+            // 
+            // shiningForceCDToolStripMenuItem
+            // 
+            this.shiningForceCDToolStripMenuItem.Name = "shiningForceCDToolStripMenuItem";
+            this.shiningForceCDToolStripMenuItem.Size = new System.Drawing.Size(197, 22);
+            this.shiningForceCDToolStripMenuItem.Text = "Shining Force CD";
+            this.shiningForceCDToolStripMenuItem.Click += new System.EventHandler(this.shiningForceCDToolStripMenuItem_Click);
             // 
             // helpToolStripMenuItem
             // 
@@ -774,6 +922,40 @@
             this.shiningForcePanel.Size = new System.Drawing.Size(700, 487);
             this.shiningForcePanel.TabIndex = 7;
             // 
+            // shiningForceMagicLB
+            // 
+            this.shiningForceMagicLB.FormattingEnabled = true;
+            this.shiningForceMagicLB.Location = new System.Drawing.Point(399, 312);
+            this.shiningForceMagicLB.Name = "shiningForceMagicLB";
+            this.shiningForceMagicLB.Size = new System.Drawing.Size(138, 121);
+            this.shiningForceMagicLB.TabIndex = 168;
+            // 
+            // label24
+            // 
+            this.label24.AutoSize = true;
+            this.label24.Location = new System.Drawing.Point(396, 294);
+            this.label24.Name = "label24";
+            this.label24.Size = new System.Drawing.Size(39, 13);
+            this.label24.TabIndex = 167;
+            this.label24.Text = "Magic:";
+            // 
+            // shiningForceItemsLB
+            // 
+            this.shiningForceItemsLB.FormattingEnabled = true;
+            this.shiningForceItemsLB.Location = new System.Drawing.Point(399, 162);
+            this.shiningForceItemsLB.Name = "shiningForceItemsLB";
+            this.shiningForceItemsLB.Size = new System.Drawing.Size(138, 121);
+            this.shiningForceItemsLB.TabIndex = 166;
+            // 
+            // label8
+            // 
+            this.label8.AutoSize = true;
+            this.label8.Location = new System.Drawing.Point(396, 144);
+            this.label8.Name = "label8";
+            this.label8.Size = new System.Drawing.Size(35, 13);
+            this.label8.TabIndex = 165;
+            this.label8.Text = "Items:";
+            // 
             // shiningForceNewDefenseTb
             // 
             this.shiningForceNewDefenseTb.Location = new System.Drawing.Point(240, 217);
@@ -787,7 +969,6 @@
             this.shiningForceNewMoveTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.shiningForceNewMoveTb.Location = new System.Drawing.Point(240, 272);
             this.shiningForceNewMoveTb.Name = "shiningForceNewMoveTb";
-            this.shiningForceNewMoveTb.ReadOnly = true;
             this.shiningForceNewMoveTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceNewMoveTb.TabIndex = 163;
             // 
@@ -1177,49 +1358,1310 @@
             this.shiningForcePic.TabIndex = 0;
             this.shiningForcePic.TabStop = false;
             // 
-            // label8
+            // shiningForce2Panel
             // 
-            this.label8.AutoSize = true;
-            this.label8.Location = new System.Drawing.Point(396, 144);
-            this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(35, 13);
-            this.label8.TabIndex = 165;
-            this.label8.Text = "Items:";
+            this.shiningForce2Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.shiningForce2Panel.Controls.Add(this.label65);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewAgilityEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurAgilityEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewMoveBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.label64);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurMoveBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewDefenseEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.label63);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurDefenseEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.label62);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewAttackEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurAttackEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.label61);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2DefeatsTb);
+            this.shiningForce2Panel.Controls.Add(this.label60);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2KillsTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2MagicListBox);
+            this.shiningForce2Panel.Controls.Add(this.label25);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2ItemListBox);
+            this.shiningForce2Panel.Controls.Add(this.label30);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewDefenseBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewMoveEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2UpdateSaveStateBtn);
+            this.shiningForce2Panel.Controls.Add(this.label31);
+            this.shiningForce2Panel.Controls.Add(this.label32);
+            this.shiningForce2Panel.Controls.Add(this.label37);
+            this.shiningForce2Panel.Controls.Add(this.label44);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewAttackBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewAgilityBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurDefenseBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurAttackBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurAgilityBaseTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurMoveEquipTb);
+            this.shiningForce2Panel.Controls.Add(this.label45);
+            this.shiningForce2Panel.Controls.Add(this.label46);
+            this.shiningForce2Panel.Controls.Add(this.label47);
+            this.shiningForce2Panel.Controls.Add(this.label48);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewMaxMPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewPresentMPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewMaxHPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewPresentHPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2MaxMPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2PresentMPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2MaxHPTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2PresentHPTb);
+            this.shiningForce2Panel.Controls.Add(this.label49);
+            this.shiningForce2Panel.Controls.Add(this.label50);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewExpTb);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurExpTb);
+            this.shiningForce2Panel.Controls.Add(this.label51);
+            this.shiningForce2Panel.Controls.Add(this.label52);
+            this.shiningForce2Panel.Controls.Add(this.label53);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2LevelTb);
+            this.shiningForce2Panel.Controls.Add(this.label54);
+            this.shiningForce2Panel.Controls.Add(this.label55);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2NewGoldTb);
+            this.shiningForce2Panel.Controls.Add(this.label56);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CurrentGoldTb);
+            this.shiningForce2Panel.Controls.Add(this.label57);
+            this.shiningForce2Panel.Controls.Add(this.label58);
+            this.shiningForce2Panel.Controls.Add(this.shiningForce2CharacterCmb);
+            this.shiningForce2Panel.Controls.Add(this.label59);
+            this.shiningForce2Panel.Controls.Add(this.pictureBox1);
+            this.shiningForce2Panel.Location = new System.Drawing.Point(7, 80);
+            this.shiningForce2Panel.Name = "shiningForce2Panel";
+            this.shiningForce2Panel.Size = new System.Drawing.Size(700, 657);
+            this.shiningForce2Panel.TabIndex = 8;
             // 
-            // shiningForceItemsLB
+            // label65
             // 
-            this.shiningForceItemsLB.FormattingEnabled = true;
-            this.shiningForceItemsLB.Location = new System.Drawing.Point(399, 162);
-            this.shiningForceItemsLB.Name = "shiningForceItemsLB";
-            this.shiningForceItemsLB.Size = new System.Drawing.Size(138, 121);
-            this.shiningForceItemsLB.TabIndex = 166;
+            this.label65.AutoSize = true;
+            this.label65.Location = new System.Drawing.Point(17, 327);
+            this.label65.Name = "label65";
+            this.label65.Size = new System.Drawing.Size(67, 13);
+            this.label65.TabIndex = 183;
+            this.label65.Text = "Agility Equip:";
+            this.label65.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
-            // shiningForceMagicLB
+            // shiningForce2NewAgilityEquipTb
             // 
-            this.shiningForceMagicLB.FormattingEnabled = true;
-            this.shiningForceMagicLB.Location = new System.Drawing.Point(399, 312);
-            this.shiningForceMagicLB.Name = "shiningForceMagicLB";
-            this.shiningForceMagicLB.Size = new System.Drawing.Size(138, 121);
-            this.shiningForceMagicLB.TabIndex = 168;
+            this.shiningForce2NewAgilityEquipTb.Location = new System.Drawing.Point(240, 324);
+            this.shiningForce2NewAgilityEquipTb.Name = "shiningForce2NewAgilityEquipTb";
+            this.shiningForce2NewAgilityEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewAgilityEquipTb.TabIndex = 185;
             // 
-            // label24
+            // shiningForce2CurAgilityEquipTb
             // 
-            this.label24.AutoSize = true;
-            this.label24.Location = new System.Drawing.Point(396, 294);
-            this.label24.Name = "label24";
-            this.label24.Size = new System.Drawing.Size(39, 13);
-            this.label24.TabIndex = 167;
-            this.label24.Text = "Magic:";
+            this.shiningForce2CurAgilityEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurAgilityEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurAgilityEquipTb.Location = new System.Drawing.Point(89, 324);
+            this.shiningForce2CurAgilityEquipTb.Name = "shiningForce2CurAgilityEquipTb";
+            this.shiningForce2CurAgilityEquipTb.ReadOnly = true;
+            this.shiningForce2CurAgilityEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurAgilityEquipTb.TabIndex = 184;
+            // 
+            // shiningForce2NewMoveBaseTb
+            // 
+            this.shiningForce2NewMoveBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2NewMoveBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2NewMoveBaseTb.Location = new System.Drawing.Point(240, 351);
+            this.shiningForce2NewMoveBaseTb.Name = "shiningForce2NewMoveBaseTb";
+            this.shiningForce2NewMoveBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewMoveBaseTb.TabIndex = 182;
+            // 
+            // label64
+            // 
+            this.label64.AutoSize = true;
+            this.label64.Location = new System.Drawing.Point(20, 354);
+            this.label64.Name = "label64";
+            this.label64.Size = new System.Drawing.Size(64, 13);
+            this.label64.TabIndex = 180;
+            this.label64.Text = "Move Base:";
+            this.label64.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2CurMoveBaseTb
+            // 
+            this.shiningForce2CurMoveBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurMoveBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurMoveBaseTb.Location = new System.Drawing.Point(89, 351);
+            this.shiningForce2CurMoveBaseTb.Name = "shiningForce2CurMoveBaseTb";
+            this.shiningForce2CurMoveBaseTb.ReadOnly = true;
+            this.shiningForce2CurMoveBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurMoveBaseTb.TabIndex = 181;
+            // 
+            // shiningForce2NewDefenseEquipTb
+            // 
+            this.shiningForce2NewDefenseEquipTb.Location = new System.Drawing.Point(240, 270);
+            this.shiningForce2NewDefenseEquipTb.Name = "shiningForce2NewDefenseEquipTb";
+            this.shiningForce2NewDefenseEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewDefenseEquipTb.TabIndex = 179;
+            // 
+            // label63
+            // 
+            this.label63.AutoSize = true;
+            this.label63.Location = new System.Drawing.Point(4, 273);
+            this.label63.Name = "label63";
+            this.label63.Size = new System.Drawing.Size(80, 13);
+            this.label63.TabIndex = 177;
+            this.label63.Text = "Defense Equip:";
+            this.label63.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2CurDefenseEquipTb
+            // 
+            this.shiningForce2CurDefenseEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurDefenseEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurDefenseEquipTb.Location = new System.Drawing.Point(89, 270);
+            this.shiningForce2CurDefenseEquipTb.Name = "shiningForce2CurDefenseEquipTb";
+            this.shiningForce2CurDefenseEquipTb.ReadOnly = true;
+            this.shiningForce2CurDefenseEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurDefenseEquipTb.TabIndex = 178;
+            // 
+            // label62
+            // 
+            this.label62.AutoSize = true;
+            this.label62.Location = new System.Drawing.Point(13, 219);
+            this.label62.Name = "label62";
+            this.label62.Size = new System.Drawing.Size(71, 13);
+            this.label62.TabIndex = 174;
+            this.label62.Text = "Attack Equip:";
+            this.label62.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2NewAttackEquipTb
+            // 
+            this.shiningForce2NewAttackEquipTb.Location = new System.Drawing.Point(240, 216);
+            this.shiningForce2NewAttackEquipTb.Name = "shiningForce2NewAttackEquipTb";
+            this.shiningForce2NewAttackEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewAttackEquipTb.TabIndex = 176;
+            // 
+            // shiningForce2CurAttackEquipTb
+            // 
+            this.shiningForce2CurAttackEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurAttackEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurAttackEquipTb.Location = new System.Drawing.Point(89, 216);
+            this.shiningForce2CurAttackEquipTb.Name = "shiningForce2CurAttackEquipTb";
+            this.shiningForce2CurAttackEquipTb.ReadOnly = true;
+            this.shiningForce2CurAttackEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurAttackEquipTb.TabIndex = 175;
+            // 
+            // label61
+            // 
+            this.label61.AutoSize = true;
+            this.label61.Location = new System.Drawing.Point(37, 585);
+            this.label61.Name = "label61";
+            this.label61.Size = new System.Drawing.Size(47, 13);
+            this.label61.TabIndex = 172;
+            this.label61.Text = "Defeats:";
+            this.label61.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2DefeatsTb
+            // 
+            this.shiningForce2DefeatsTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2DefeatsTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2DefeatsTb.Location = new System.Drawing.Point(89, 582);
+            this.shiningForce2DefeatsTb.Name = "shiningForce2DefeatsTb";
+            this.shiningForce2DefeatsTb.ReadOnly = true;
+            this.shiningForce2DefeatsTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2DefeatsTb.TabIndex = 173;
+            // 
+            // label60
+            // 
+            this.label60.AutoSize = true;
+            this.label60.Location = new System.Drawing.Point(56, 556);
+            this.label60.Name = "label60";
+            this.label60.Size = new System.Drawing.Size(28, 13);
+            this.label60.TabIndex = 169;
+            this.label60.Text = "Kills:";
+            this.label60.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2KillsTb
+            // 
+            this.shiningForce2KillsTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2KillsTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2KillsTb.Location = new System.Drawing.Point(89, 553);
+            this.shiningForce2KillsTb.Name = "shiningForce2KillsTb";
+            this.shiningForce2KillsTb.ReadOnly = true;
+            this.shiningForce2KillsTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2KillsTb.TabIndex = 170;
+            // 
+            // shiningForce2MagicListBox
+            // 
+            this.shiningForce2MagicListBox.FormattingEnabled = true;
+            this.shiningForce2MagicListBox.Location = new System.Drawing.Point(399, 312);
+            this.shiningForce2MagicListBox.Name = "shiningForce2MagicListBox";
+            this.shiningForce2MagicListBox.Size = new System.Drawing.Size(138, 121);
+            this.shiningForce2MagicListBox.TabIndex = 168;
+            // 
+            // label25
+            // 
+            this.label25.AutoSize = true;
+            this.label25.Location = new System.Drawing.Point(396, 294);
+            this.label25.Name = "label25";
+            this.label25.Size = new System.Drawing.Size(39, 13);
+            this.label25.TabIndex = 167;
+            this.label25.Text = "Magic:";
+            // 
+            // shiningForce2ItemListBox
+            // 
+            this.shiningForce2ItemListBox.FormattingEnabled = true;
+            this.shiningForce2ItemListBox.Location = new System.Drawing.Point(399, 162);
+            this.shiningForce2ItemListBox.Name = "shiningForce2ItemListBox";
+            this.shiningForce2ItemListBox.Size = new System.Drawing.Size(138, 121);
+            this.shiningForce2ItemListBox.TabIndex = 166;
+            // 
+            // label30
+            // 
+            this.label30.AutoSize = true;
+            this.label30.Location = new System.Drawing.Point(396, 144);
+            this.label30.Name = "label30";
+            this.label30.Size = new System.Drawing.Size(35, 13);
+            this.label30.TabIndex = 165;
+            this.label30.Text = "Items:";
+            // 
+            // shiningForce2NewDefenseBaseTb
+            // 
+            this.shiningForce2NewDefenseBaseTb.Location = new System.Drawing.Point(240, 243);
+            this.shiningForce2NewDefenseBaseTb.Name = "shiningForce2NewDefenseBaseTb";
+            this.shiningForce2NewDefenseBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewDefenseBaseTb.TabIndex = 164;
+            // 
+            // shiningForce2NewMoveEquipTb
+            // 
+            this.shiningForce2NewMoveEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2NewMoveEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2NewMoveEquipTb.Location = new System.Drawing.Point(240, 379);
+            this.shiningForce2NewMoveEquipTb.Name = "shiningForce2NewMoveEquipTb";
+            this.shiningForce2NewMoveEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewMoveEquipTb.TabIndex = 163;
+            // 
+            // shiningForce2UpdateSaveStateBtn
+            // 
+            this.shiningForce2UpdateSaveStateBtn.Location = new System.Drawing.Point(554, 621);
+            this.shiningForce2UpdateSaveStateBtn.Name = "shiningForce2UpdateSaveStateBtn";
+            this.shiningForce2UpdateSaveStateBtn.Size = new System.Drawing.Size(129, 23);
+            this.shiningForce2UpdateSaveStateBtn.TabIndex = 162;
+            this.shiningForce2UpdateSaveStateBtn.Text = "Update Save State";
+            this.shiningForce2UpdateSaveStateBtn.UseVisualStyleBackColor = true;
+            this.shiningForce2UpdateSaveStateBtn.Click += new System.EventHandler(this.shiningForce2UpdateSaveStateBtn_Click);
+            // 
+            // label31
+            // 
+            this.label31.AutoSize = true;
+            this.label31.Location = new System.Drawing.Point(7, 246);
+            this.label31.Name = "label31";
+            this.label31.Size = new System.Drawing.Size(77, 13);
+            this.label31.TabIndex = 148;
+            this.label31.Text = "Defense Base:";
+            this.label31.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label32
+            // 
+            this.label32.AutoSize = true;
+            this.label32.Location = new System.Drawing.Point(16, 192);
+            this.label32.Name = "label32";
+            this.label32.Size = new System.Drawing.Size(68, 13);
+            this.label32.TabIndex = 149;
+            this.label32.Text = "Attack Base:";
+            this.label32.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label37
+            // 
+            this.label37.AutoSize = true;
+            this.label37.Location = new System.Drawing.Point(20, 300);
+            this.label37.Name = "label37";
+            this.label37.Size = new System.Drawing.Size(64, 13);
+            this.label37.TabIndex = 151;
+            this.label37.Text = "Agility Base:";
+            this.label37.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label44
+            // 
+            this.label44.AutoSize = true;
+            this.label44.Location = new System.Drawing.Point(17, 382);
+            this.label44.Name = "label44";
+            this.label44.Size = new System.Drawing.Size(67, 13);
+            this.label44.TabIndex = 152;
+            this.label44.Text = "Move Equip:";
+            this.label44.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2NewAttackBaseTb
+            // 
+            this.shiningForce2NewAttackBaseTb.Location = new System.Drawing.Point(240, 189);
+            this.shiningForce2NewAttackBaseTb.Name = "shiningForce2NewAttackBaseTb";
+            this.shiningForce2NewAttackBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewAttackBaseTb.TabIndex = 160;
+            // 
+            // shiningForce2NewAgilityBaseTb
+            // 
+            this.shiningForce2NewAgilityBaseTb.Location = new System.Drawing.Point(240, 297);
+            this.shiningForce2NewAgilityBaseTb.Name = "shiningForce2NewAgilityBaseTb";
+            this.shiningForce2NewAgilityBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewAgilityBaseTb.TabIndex = 156;
+            // 
+            // shiningForce2CurDefenseBaseTb
+            // 
+            this.shiningForce2CurDefenseBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurDefenseBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurDefenseBaseTb.Location = new System.Drawing.Point(89, 243);
+            this.shiningForce2CurDefenseBaseTb.Name = "shiningForce2CurDefenseBaseTb";
+            this.shiningForce2CurDefenseBaseTb.ReadOnly = true;
+            this.shiningForce2CurDefenseBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurDefenseBaseTb.TabIndex = 161;
+            // 
+            // shiningForce2CurAttackBaseTb
+            // 
+            this.shiningForce2CurAttackBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurAttackBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurAttackBaseTb.Location = new System.Drawing.Point(89, 189);
+            this.shiningForce2CurAttackBaseTb.Name = "shiningForce2CurAttackBaseTb";
+            this.shiningForce2CurAttackBaseTb.ReadOnly = true;
+            this.shiningForce2CurAttackBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurAttackBaseTb.TabIndex = 159;
+            // 
+            // shiningForce2CurAgilityBaseTb
+            // 
+            this.shiningForce2CurAgilityBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurAgilityBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurAgilityBaseTb.Location = new System.Drawing.Point(89, 297);
+            this.shiningForce2CurAgilityBaseTb.Name = "shiningForce2CurAgilityBaseTb";
+            this.shiningForce2CurAgilityBaseTb.ReadOnly = true;
+            this.shiningForce2CurAgilityBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurAgilityBaseTb.TabIndex = 155;
+            // 
+            // shiningForce2CurMoveEquipTb
+            // 
+            this.shiningForce2CurMoveEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurMoveEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurMoveEquipTb.Location = new System.Drawing.Point(89, 379);
+            this.shiningForce2CurMoveEquipTb.Name = "shiningForce2CurMoveEquipTb";
+            this.shiningForce2CurMoveEquipTb.ReadOnly = true;
+            this.shiningForce2CurMoveEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurMoveEquipTb.TabIndex = 153;
+            // 
+            // label45
+            // 
+            this.label45.AutoSize = true;
+            this.label45.Location = new System.Drawing.Point(35, 527);
+            this.label45.Name = "label45";
+            this.label45.Size = new System.Drawing.Size(49, 13);
+            this.label45.TabIndex = 133;
+            this.label45.Text = "Max MP:";
+            this.label45.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label46
+            // 
+            this.label46.AutoSize = true;
+            this.label46.Location = new System.Drawing.Point(19, 498);
+            this.label46.Name = "label46";
+            this.label46.Size = new System.Drawing.Size(65, 13);
+            this.label46.TabIndex = 134;
+            this.label46.Text = "Present MP:";
+            this.label46.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label47
+            // 
+            this.label47.AutoSize = true;
+            this.label47.Location = new System.Drawing.Point(36, 469);
+            this.label47.Name = "label47";
+            this.label47.Size = new System.Drawing.Size(48, 13);
+            this.label47.TabIndex = 135;
+            this.label47.Text = "Max HP:";
+            this.label47.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label48
+            // 
+            this.label48.AutoSize = true;
+            this.label48.Location = new System.Drawing.Point(20, 441);
+            this.label48.Name = "label48";
+            this.label48.Size = new System.Drawing.Size(64, 13);
+            this.label48.TabIndex = 136;
+            this.label48.Text = "Present HP:";
+            this.label48.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2NewMaxMPTb
+            // 
+            this.shiningForce2NewMaxMPTb.Location = new System.Drawing.Point(240, 524);
+            this.shiningForce2NewMaxMPTb.Name = "shiningForce2NewMaxMPTb";
+            this.shiningForce2NewMaxMPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewMaxMPTb.TabIndex = 144;
+            // 
+            // shiningForce2NewPresentMPTb
+            // 
+            this.shiningForce2NewPresentMPTb.Location = new System.Drawing.Point(240, 495);
+            this.shiningForce2NewPresentMPTb.Name = "shiningForce2NewPresentMPTb";
+            this.shiningForce2NewPresentMPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewPresentMPTb.TabIndex = 142;
+            // 
+            // shiningForce2NewMaxHPTb
+            // 
+            this.shiningForce2NewMaxHPTb.Location = new System.Drawing.Point(240, 466);
+            this.shiningForce2NewMaxHPTb.Name = "shiningForce2NewMaxHPTb";
+            this.shiningForce2NewMaxHPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewMaxHPTb.TabIndex = 140;
+            // 
+            // shiningForce2NewPresentHPTb
+            // 
+            this.shiningForce2NewPresentHPTb.Location = new System.Drawing.Point(240, 438);
+            this.shiningForce2NewPresentHPTb.Name = "shiningForce2NewPresentHPTb";
+            this.shiningForce2NewPresentHPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewPresentHPTb.TabIndex = 138;
+            // 
+            // shiningForce2MaxMPTb
+            // 
+            this.shiningForce2MaxMPTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2MaxMPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2MaxMPTb.Location = new System.Drawing.Point(89, 524);
+            this.shiningForce2MaxMPTb.Name = "shiningForce2MaxMPTb";
+            this.shiningForce2MaxMPTb.ReadOnly = true;
+            this.shiningForce2MaxMPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2MaxMPTb.TabIndex = 143;
+            // 
+            // shiningForce2PresentMPTb
+            // 
+            this.shiningForce2PresentMPTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2PresentMPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2PresentMPTb.Location = new System.Drawing.Point(89, 495);
+            this.shiningForce2PresentMPTb.Name = "shiningForce2PresentMPTb";
+            this.shiningForce2PresentMPTb.ReadOnly = true;
+            this.shiningForce2PresentMPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2PresentMPTb.TabIndex = 141;
+            // 
+            // shiningForce2MaxHPTb
+            // 
+            this.shiningForce2MaxHPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2MaxHPTb.Location = new System.Drawing.Point(89, 466);
+            this.shiningForce2MaxHPTb.Name = "shiningForce2MaxHPTb";
+            this.shiningForce2MaxHPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2MaxHPTb.TabIndex = 139;
+            // 
+            // shiningForce2PresentHPTb
+            // 
+            this.shiningForce2PresentHPTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2PresentHPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2PresentHPTb.Location = new System.Drawing.Point(89, 438);
+            this.shiningForce2PresentHPTb.Name = "shiningForce2PresentHPTb";
+            this.shiningForce2PresentHPTb.ReadOnly = true;
+            this.shiningForce2PresentHPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2PresentHPTb.TabIndex = 137;
+            // 
+            // label49
+            // 
+            this.label49.AutoSize = true;
+            this.label49.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label49.Location = new System.Drawing.Point(11, 29);
+            this.label49.Name = "label49";
+            this.label49.Size = new System.Drawing.Size(529, 13);
+            this.label49.TabIndex = 132;
+            this.label49.Text = "                                                                                 " +
+    "                                                                                " +
+    "             ";
+            // 
+            // label50
+            // 
+            this.label50.AutoSize = true;
+            this.label50.Location = new System.Drawing.Point(21, 411);
+            this.label50.Name = "label50";
+            this.label50.Size = new System.Drawing.Size(63, 13);
+            this.label50.TabIndex = 129;
+            this.label50.Text = "Experience:";
+            this.label50.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2NewExpTb
+            // 
+            this.shiningForce2NewExpTb.Location = new System.Drawing.Point(240, 408);
+            this.shiningForce2NewExpTb.Name = "shiningForce2NewExpTb";
+            this.shiningForce2NewExpTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewExpTb.TabIndex = 131;
+            // 
+            // shiningForce2CurExpTb
+            // 
+            this.shiningForce2CurExpTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurExpTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CurExpTb.Location = new System.Drawing.Point(89, 408);
+            this.shiningForce2CurExpTb.Name = "shiningForce2CurExpTb";
+            this.shiningForce2CurExpTb.ReadOnly = true;
+            this.shiningForce2CurExpTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2CurExpTb.TabIndex = 130;
+            // 
+            // label51
+            // 
+            this.label51.AutoSize = true;
+            this.label51.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, ((System.Drawing.FontStyle)((System.Drawing.FontStyle.Bold | System.Drawing.FontStyle.Underline))), System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label51.Location = new System.Drawing.Point(18, 122);
+            this.label51.Name = "label51";
+            this.label51.Size = new System.Drawing.Size(520, 13);
+            this.label51.TabIndex = 128;
+            this.label51.Text = "Stats                                                                            " +
+    "                                             ";
+            // 
+            // label52
+            // 
+            this.label52.AutoSize = true;
+            this.label52.Location = new System.Drawing.Point(48, 166);
+            this.label52.Name = "label52";
+            this.label52.Size = new System.Drawing.Size(36, 13);
+            this.label52.TabIndex = 14;
+            this.label52.Text = "Level:";
+            this.label52.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label53
+            // 
+            this.label53.AutoSize = true;
+            this.label53.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label53.Location = new System.Drawing.Point(239, 144);
+            this.label53.Name = "label53";
+            this.label53.Size = new System.Drawing.Size(131, 13);
+            this.label53.TabIndex = 15;
+            this.label53.Text = "New                                  ";
+            // 
+            // shiningForce2LevelTb
+            // 
+            this.shiningForce2LevelTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2LevelTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2LevelTb.Location = new System.Drawing.Point(89, 162);
+            this.shiningForce2LevelTb.Name = "shiningForce2LevelTb";
+            this.shiningForce2LevelTb.ReadOnly = true;
+            this.shiningForce2LevelTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForce2LevelTb.TabIndex = 17;
+            // 
+            // label54
+            // 
+            this.label54.AutoSize = true;
+            this.label54.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label54.Location = new System.Drawing.Point(86, 144);
+            this.label54.Name = "label54";
+            this.label54.Size = new System.Drawing.Size(137, 13);
+            this.label54.TabIndex = 16;
+            this.label54.Text = "Current                                ";
+            // 
+            // label55
+            // 
+            this.label55.AutoSize = true;
+            this.label55.Location = new System.Drawing.Point(199, 68);
+            this.label55.Name = "label55";
+            this.label55.Size = new System.Drawing.Size(32, 13);
+            this.label55.TabIndex = 8;
+            this.label55.Text = "Gold:";
+            this.label55.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2NewGoldTb
+            // 
+            this.shiningForce2NewGoldTb.Location = new System.Drawing.Point(407, 65);
+            this.shiningForce2NewGoldTb.Name = "shiningForce2NewGoldTb";
+            this.shiningForce2NewGoldTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2NewGoldTb.TabIndex = 12;
+            // 
+            // label56
+            // 
+            this.label56.AutoSize = true;
+            this.label56.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label56.Location = new System.Drawing.Point(404, 48);
+            this.label56.Name = "label56";
+            this.label56.Size = new System.Drawing.Size(134, 13);
+            this.label56.TabIndex = 9;
+            this.label56.Text = "New                                   ";
+            // 
+            // shiningForce2CurrentGoldTb
+            // 
+            this.shiningForce2CurrentGoldTb.BackColor = System.Drawing.Color.White;
+            this.shiningForce2CurrentGoldTb.Location = new System.Drawing.Point(237, 65);
+            this.shiningForce2CurrentGoldTb.Name = "shiningForce2CurrentGoldTb";
+            this.shiningForce2CurrentGoldTb.ReadOnly = true;
+            this.shiningForce2CurrentGoldTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForce2CurrentGoldTb.TabIndex = 11;
+            // 
+            // label57
+            // 
+            this.label57.AutoSize = true;
+            this.label57.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label57.Location = new System.Drawing.Point(234, 48);
+            this.label57.Name = "label57";
+            this.label57.Size = new System.Drawing.Size(134, 13);
+            this.label57.TabIndex = 10;
+            this.label57.Text = "Current                               ";
+            // 
+            // label58
+            // 
+            this.label58.AutoSize = true;
+            this.label58.Location = new System.Drawing.Point(141, 99);
+            this.label58.Name = "label58";
+            this.label58.Size = new System.Drawing.Size(89, 13);
+            this.label58.TabIndex = 6;
+            this.label58.Text = "Select Character:";
+            this.label58.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForce2CharacterCmb
+            // 
+            this.shiningForce2CharacterCmb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.5F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForce2CharacterCmb.FormattingEnabled = true;
+            this.shiningForce2CharacterCmb.Location = new System.Drawing.Point(235, 96);
+            this.shiningForce2CharacterCmb.Name = "shiningForce2CharacterCmb";
+            this.shiningForce2CharacterCmb.Size = new System.Drawing.Size(132, 21);
+            this.shiningForce2CharacterCmb.TabIndex = 7;
+            this.shiningForce2CharacterCmb.SelectedIndexChanged += new System.EventHandler(this.shiningForce2CharacterCmb_SelectedIndexChanged);
+            // 
+            // label59
+            // 
+            this.label59.AutoSize = true;
+            this.label59.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label59.Location = new System.Drawing.Point(6, 6);
+            this.label59.Name = "label59";
+            this.label59.Size = new System.Drawing.Size(135, 20);
+            this.label59.TabIndex = 1;
+            this.label59.Text = "Shining Force 2";
+            // 
+            // pictureBox1
+            // 
+            this.pictureBox1.Image = ((System.Drawing.Image)(resources.GetObject("pictureBox1.Image")));
+            this.pictureBox1.InitialImage = ((System.Drawing.Image)(resources.GetObject("pictureBox1.InitialImage")));
+            this.pictureBox1.Location = new System.Drawing.Point(551, 3);
+            this.pictureBox1.Name = "pictureBox1";
+            this.pictureBox1.Size = new System.Drawing.Size(143, 185);
+            this.pictureBox1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
+            this.pictureBox1.TabIndex = 0;
+            this.pictureBox1.TabStop = false;
+            // 
+            // shiningForceCDPanel
+            // 
+            this.shiningForceCDPanel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.shiningForceCDPanel.Controls.Add(this.label95);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDUpdateSaveStateBtn);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDCurrentClassTb);
+            this.shiningForceCDPanel.Controls.Add(this.label94);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewAgilityEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDAgilityEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewMoveBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDMoveBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewDefenseEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDDefenseEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewAttackEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDAttackEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDMagicListBox);
+            this.shiningForceCDPanel.Controls.Add(this.label93);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDItemsListBox);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewDefenseBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewMoveEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewAttackBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewAgilityBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDDefenseBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDAttackBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDAgilityBaseTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDMoveEquipTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewMaxMPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewPresentMPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewMaxHPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewPresentHPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDMaxMPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDPresentMPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDMaxHPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDPresentHPTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewExperienceTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDExperienceTb);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDCurrentLevelTb);
+            this.shiningForceCDPanel.Controls.Add(this.label75);
+            this.shiningForceCDPanel.Controls.Add(this.label76);
+            this.shiningForceCDPanel.Controls.Add(this.label79);
+            this.shiningForceCDPanel.Controls.Add(this.label80);
+            this.shiningForceCDPanel.Controls.Add(this.label83);
+            this.shiningForceCDPanel.Controls.Add(this.label84);
+            this.shiningForceCDPanel.Controls.Add(this.label85);
+            this.shiningForceCDPanel.Controls.Add(this.label86);
+            this.shiningForceCDPanel.Controls.Add(this.label87);
+            this.shiningForceCDPanel.Controls.Add(this.label88);
+            this.shiningForceCDPanel.Controls.Add(this.label89);
+            this.shiningForceCDPanel.Controls.Add(this.label90);
+            this.shiningForceCDPanel.Controls.Add(this.label91);
+            this.shiningForceCDPanel.Controls.Add(this.label92);
+            this.shiningForceCDPanel.Controls.Add(this.label66);
+            this.shiningForceCDPanel.Controls.Add(this.label67);
+            this.shiningForceCDPanel.Controls.Add(this.label68);
+            this.shiningForceCDPanel.Controls.Add(this.label69);
+            this.shiningForceCDPanel.Controls.Add(this.label70);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDNewGoldTb);
+            this.shiningForceCDPanel.Controls.Add(this.label71);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDCurrentGoldTb);
+            this.shiningForceCDPanel.Controls.Add(this.label72);
+            this.shiningForceCDPanel.Controls.Add(this.label73);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDSelectCharacterCmb);
+            this.shiningForceCDPanel.Controls.Add(this.label74);
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDCoverPb);
+            this.shiningForceCDPanel.Location = new System.Drawing.Point(7, 80);
+            this.shiningForceCDPanel.Name = "shiningForceCDPanel";
+            this.shiningForceCDPanel.Size = new System.Drawing.Size(700, 657);
+            this.shiningForceCDPanel.TabIndex = 9;
+            // 
+            // label95
+            // 
+            this.label95.AutoSize = true;
+            this.label95.Location = new System.Drawing.Point(400, 149);
+            this.label95.Name = "label95";
+            this.label95.Size = new System.Drawing.Size(35, 13);
+            this.label95.TabIndex = 235;
+            this.label95.Text = "Items:";
+            // 
+            // shiningForceCDUpdateSaveStateBtn
+            // 
+            this.shiningForceCDUpdateSaveStateBtn.Location = new System.Drawing.Point(551, 621);
+            this.shiningForceCDUpdateSaveStateBtn.Name = "shiningForceCDUpdateSaveStateBtn";
+            this.shiningForceCDUpdateSaveStateBtn.Size = new System.Drawing.Size(129, 23);
+            this.shiningForceCDUpdateSaveStateBtn.TabIndex = 234;
+            this.shiningForceCDUpdateSaveStateBtn.Text = "Update Save State";
+            this.shiningForceCDUpdateSaveStateBtn.UseVisualStyleBackColor = true;
+            this.shiningForceCDUpdateSaveStateBtn.Click += new System.EventHandler(this.shiningForceCDUpdateSaveStateBtn_Click);
+            // 
+            // shiningForceCDCurrentClassTb
+            // 
+            this.shiningForceCDCurrentClassTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDCurrentClassTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDCurrentClassTb.Location = new System.Drawing.Point(93, 196);
+            this.shiningForceCDCurrentClassTb.Name = "shiningForceCDCurrentClassTb";
+            this.shiningForceCDCurrentClassTb.ReadOnly = true;
+            this.shiningForceCDCurrentClassTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDCurrentClassTb.TabIndex = 233;
+            // 
+            // label94
+            // 
+            this.label94.AutoSize = true;
+            this.label94.Location = new System.Drawing.Point(47, 196);
+            this.label94.Name = "label94";
+            this.label94.Size = new System.Drawing.Size(35, 13);
+            this.label94.TabIndex = 232;
+            this.label94.Text = "Class:";
+            this.label94.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForceCDNewAgilityEquipTb
+            // 
+            this.shiningForceCDNewAgilityEquipTb.Location = new System.Drawing.Point(244, 357);
+            this.shiningForceCDNewAgilityEquipTb.Name = "shiningForceCDNewAgilityEquipTb";
+            this.shiningForceCDNewAgilityEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewAgilityEquipTb.TabIndex = 231;
+            // 
+            // shiningForceCDAgilityEquipTb
+            // 
+            this.shiningForceCDAgilityEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDAgilityEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDAgilityEquipTb.Location = new System.Drawing.Point(93, 357);
+            this.shiningForceCDAgilityEquipTb.Name = "shiningForceCDAgilityEquipTb";
+            this.shiningForceCDAgilityEquipTb.ReadOnly = true;
+            this.shiningForceCDAgilityEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDAgilityEquipTb.TabIndex = 230;
+            // 
+            // shiningForceCDNewMoveBaseTb
+            // 
+            this.shiningForceCDNewMoveBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDNewMoveBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDNewMoveBaseTb.Location = new System.Drawing.Point(244, 384);
+            this.shiningForceCDNewMoveBaseTb.Name = "shiningForceCDNewMoveBaseTb";
+            this.shiningForceCDNewMoveBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewMoveBaseTb.TabIndex = 229;
+            // 
+            // shiningForceCDMoveBaseTb
+            // 
+            this.shiningForceCDMoveBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDMoveBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDMoveBaseTb.Location = new System.Drawing.Point(93, 384);
+            this.shiningForceCDMoveBaseTb.Name = "shiningForceCDMoveBaseTb";
+            this.shiningForceCDMoveBaseTb.ReadOnly = true;
+            this.shiningForceCDMoveBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDMoveBaseTb.TabIndex = 228;
+            // 
+            // shiningForceCDNewDefenseEquipTb
+            // 
+            this.shiningForceCDNewDefenseEquipTb.Location = new System.Drawing.Point(244, 303);
+            this.shiningForceCDNewDefenseEquipTb.Name = "shiningForceCDNewDefenseEquipTb";
+            this.shiningForceCDNewDefenseEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewDefenseEquipTb.TabIndex = 227;
+            // 
+            // shiningForceCDDefenseEquipTb
+            // 
+            this.shiningForceCDDefenseEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDDefenseEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDDefenseEquipTb.Location = new System.Drawing.Point(93, 303);
+            this.shiningForceCDDefenseEquipTb.Name = "shiningForceCDDefenseEquipTb";
+            this.shiningForceCDDefenseEquipTb.ReadOnly = true;
+            this.shiningForceCDDefenseEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDDefenseEquipTb.TabIndex = 226;
+            // 
+            // shiningForceCDNewAttackEquipTb
+            // 
+            this.shiningForceCDNewAttackEquipTb.Location = new System.Drawing.Point(244, 249);
+            this.shiningForceCDNewAttackEquipTb.Name = "shiningForceCDNewAttackEquipTb";
+            this.shiningForceCDNewAttackEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewAttackEquipTb.TabIndex = 225;
+            // 
+            // shiningForceCDAttackEquipTb
+            // 
+            this.shiningForceCDAttackEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDAttackEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDAttackEquipTb.Location = new System.Drawing.Point(93, 249);
+            this.shiningForceCDAttackEquipTb.Name = "shiningForceCDAttackEquipTb";
+            this.shiningForceCDAttackEquipTb.ReadOnly = true;
+            this.shiningForceCDAttackEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDAttackEquipTb.TabIndex = 224;
+            // 
+            // shiningForceCDMagicListBox
+            // 
+            this.shiningForceCDMagicListBox.FormattingEnabled = true;
+            this.shiningForceCDMagicListBox.Location = new System.Drawing.Point(403, 320);
+            this.shiningForceCDMagicListBox.Name = "shiningForceCDMagicListBox";
+            this.shiningForceCDMagicListBox.Size = new System.Drawing.Size(138, 121);
+            this.shiningForceCDMagicListBox.TabIndex = 221;
+            // 
+            // label93
+            // 
+            this.label93.AutoSize = true;
+            this.label93.Location = new System.Drawing.Point(400, 302);
+            this.label93.Name = "label93";
+            this.label93.Size = new System.Drawing.Size(39, 13);
+            this.label93.TabIndex = 220;
+            this.label93.Text = "Magic:";
+            // 
+            // shiningForceCDItemsListBox
+            // 
+            this.shiningForceCDItemsListBox.FormattingEnabled = true;
+            this.shiningForceCDItemsListBox.Location = new System.Drawing.Point(403, 170);
+            this.shiningForceCDItemsListBox.Name = "shiningForceCDItemsListBox";
+            this.shiningForceCDItemsListBox.Size = new System.Drawing.Size(138, 121);
+            this.shiningForceCDItemsListBox.TabIndex = 219;
+            // 
+            // shiningForceCDNewDefenseBaseTb
+            // 
+            this.shiningForceCDNewDefenseBaseTb.Location = new System.Drawing.Point(244, 276);
+            this.shiningForceCDNewDefenseBaseTb.Name = "shiningForceCDNewDefenseBaseTb";
+            this.shiningForceCDNewDefenseBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewDefenseBaseTb.TabIndex = 218;
+            // 
+            // shiningForceCDNewMoveEquipTb
+            // 
+            this.shiningForceCDNewMoveEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDNewMoveEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDNewMoveEquipTb.Location = new System.Drawing.Point(244, 412);
+            this.shiningForceCDNewMoveEquipTb.Name = "shiningForceCDNewMoveEquipTb";
+            this.shiningForceCDNewMoveEquipTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewMoveEquipTb.TabIndex = 217;
+            // 
+            // shiningForceCDNewAttackBaseTb
+            // 
+            this.shiningForceCDNewAttackBaseTb.Location = new System.Drawing.Point(244, 222);
+            this.shiningForceCDNewAttackBaseTb.Name = "shiningForceCDNewAttackBaseTb";
+            this.shiningForceCDNewAttackBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewAttackBaseTb.TabIndex = 215;
+            // 
+            // shiningForceCDNewAgilityBaseTb
+            // 
+            this.shiningForceCDNewAgilityBaseTb.Location = new System.Drawing.Point(244, 330);
+            this.shiningForceCDNewAgilityBaseTb.Name = "shiningForceCDNewAgilityBaseTb";
+            this.shiningForceCDNewAgilityBaseTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewAgilityBaseTb.TabIndex = 213;
+            // 
+            // shiningForceCDDefenseBaseTb
+            // 
+            this.shiningForceCDDefenseBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDDefenseBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDDefenseBaseTb.Location = new System.Drawing.Point(93, 276);
+            this.shiningForceCDDefenseBaseTb.Name = "shiningForceCDDefenseBaseTb";
+            this.shiningForceCDDefenseBaseTb.ReadOnly = true;
+            this.shiningForceCDDefenseBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDDefenseBaseTb.TabIndex = 216;
+            // 
+            // shiningForceCDAttackBaseTb
+            // 
+            this.shiningForceCDAttackBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDAttackBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDAttackBaseTb.Location = new System.Drawing.Point(93, 222);
+            this.shiningForceCDAttackBaseTb.Name = "shiningForceCDAttackBaseTb";
+            this.shiningForceCDAttackBaseTb.ReadOnly = true;
+            this.shiningForceCDAttackBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDAttackBaseTb.TabIndex = 214;
+            // 
+            // shiningForceCDAgilityBaseTb
+            // 
+            this.shiningForceCDAgilityBaseTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDAgilityBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDAgilityBaseTb.Location = new System.Drawing.Point(93, 330);
+            this.shiningForceCDAgilityBaseTb.Name = "shiningForceCDAgilityBaseTb";
+            this.shiningForceCDAgilityBaseTb.ReadOnly = true;
+            this.shiningForceCDAgilityBaseTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDAgilityBaseTb.TabIndex = 212;
+            // 
+            // shiningForceCDMoveEquipTb
+            // 
+            this.shiningForceCDMoveEquipTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDMoveEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDMoveEquipTb.Location = new System.Drawing.Point(93, 412);
+            this.shiningForceCDMoveEquipTb.Name = "shiningForceCDMoveEquipTb";
+            this.shiningForceCDMoveEquipTb.ReadOnly = true;
+            this.shiningForceCDMoveEquipTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDMoveEquipTb.TabIndex = 211;
+            // 
+            // shiningForceCDNewMaxMPTb
+            // 
+            this.shiningForceCDNewMaxMPTb.Location = new System.Drawing.Point(244, 557);
+            this.shiningForceCDNewMaxMPTb.Name = "shiningForceCDNewMaxMPTb";
+            this.shiningForceCDNewMaxMPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewMaxMPTb.TabIndex = 210;
+            // 
+            // shiningForceCDNewPresentMPTb
+            // 
+            this.shiningForceCDNewPresentMPTb.Location = new System.Drawing.Point(244, 528);
+            this.shiningForceCDNewPresentMPTb.Name = "shiningForceCDNewPresentMPTb";
+            this.shiningForceCDNewPresentMPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewPresentMPTb.TabIndex = 208;
+            // 
+            // shiningForceCDNewMaxHPTb
+            // 
+            this.shiningForceCDNewMaxHPTb.Location = new System.Drawing.Point(244, 499);
+            this.shiningForceCDNewMaxHPTb.Name = "shiningForceCDNewMaxHPTb";
+            this.shiningForceCDNewMaxHPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewMaxHPTb.TabIndex = 206;
+            // 
+            // shiningForceCDNewPresentHPTb
+            // 
+            this.shiningForceCDNewPresentHPTb.Location = new System.Drawing.Point(244, 471);
+            this.shiningForceCDNewPresentHPTb.Name = "shiningForceCDNewPresentHPTb";
+            this.shiningForceCDNewPresentHPTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewPresentHPTb.TabIndex = 204;
+            // 
+            // shiningForceCDMaxMPTb
+            // 
+            this.shiningForceCDMaxMPTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDMaxMPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDMaxMPTb.Location = new System.Drawing.Point(93, 557);
+            this.shiningForceCDMaxMPTb.Name = "shiningForceCDMaxMPTb";
+            this.shiningForceCDMaxMPTb.ReadOnly = true;
+            this.shiningForceCDMaxMPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDMaxMPTb.TabIndex = 209;
+            // 
+            // shiningForceCDPresentMPTb
+            // 
+            this.shiningForceCDPresentMPTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDPresentMPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDPresentMPTb.Location = new System.Drawing.Point(93, 528);
+            this.shiningForceCDPresentMPTb.Name = "shiningForceCDPresentMPTb";
+            this.shiningForceCDPresentMPTb.ReadOnly = true;
+            this.shiningForceCDPresentMPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDPresentMPTb.TabIndex = 207;
+            // 
+            // shiningForceCDMaxHPTb
+            // 
+            this.shiningForceCDMaxHPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDMaxHPTb.Location = new System.Drawing.Point(93, 499);
+            this.shiningForceCDMaxHPTb.Name = "shiningForceCDMaxHPTb";
+            this.shiningForceCDMaxHPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDMaxHPTb.TabIndex = 205;
+            // 
+            // shiningForceCDPresentHPTb
+            // 
+            this.shiningForceCDPresentHPTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDPresentHPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDPresentHPTb.Location = new System.Drawing.Point(93, 471);
+            this.shiningForceCDPresentHPTb.Name = "shiningForceCDPresentHPTb";
+            this.shiningForceCDPresentHPTb.ReadOnly = true;
+            this.shiningForceCDPresentHPTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDPresentHPTb.TabIndex = 203;
+            // 
+            // shiningForceCDNewExperienceTb
+            // 
+            this.shiningForceCDNewExperienceTb.Location = new System.Drawing.Point(244, 441);
+            this.shiningForceCDNewExperienceTb.Name = "shiningForceCDNewExperienceTb";
+            this.shiningForceCDNewExperienceTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewExperienceTb.TabIndex = 202;
+            // 
+            // shiningForceCDExperienceTb
+            // 
+            this.shiningForceCDExperienceTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDExperienceTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDExperienceTb.Location = new System.Drawing.Point(93, 441);
+            this.shiningForceCDExperienceTb.Name = "shiningForceCDExperienceTb";
+            this.shiningForceCDExperienceTb.ReadOnly = true;
+            this.shiningForceCDExperienceTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDExperienceTb.TabIndex = 201;
+            // 
+            // shiningForceCDCurrentLevelTb
+            // 
+            this.shiningForceCDCurrentLevelTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDCurrentLevelTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDCurrentLevelTb.Location = new System.Drawing.Point(93, 170);
+            this.shiningForceCDCurrentLevelTb.Name = "shiningForceCDCurrentLevelTb";
+            this.shiningForceCDCurrentLevelTb.ReadOnly = true;
+            this.shiningForceCDCurrentLevelTb.Size = new System.Drawing.Size(132, 20);
+            this.shiningForceCDCurrentLevelTb.TabIndex = 200;
+            // 
+            // label75
+            // 
+            this.label75.AutoSize = true;
+            this.label75.Location = new System.Drawing.Point(16, 356);
+            this.label75.Name = "label75";
+            this.label75.Size = new System.Drawing.Size(67, 13);
+            this.label75.TabIndex = 199;
+            this.label75.Text = "Agility Equip:";
+            this.label75.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label76
+            // 
+            this.label76.AutoSize = true;
+            this.label76.Location = new System.Drawing.Point(19, 383);
+            this.label76.Name = "label76";
+            this.label76.Size = new System.Drawing.Size(64, 13);
+            this.label76.TabIndex = 198;
+            this.label76.Text = "Move Base:";
+            this.label76.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label79
+            // 
+            this.label79.AutoSize = true;
+            this.label79.Location = new System.Drawing.Point(3, 302);
+            this.label79.Name = "label79";
+            this.label79.Size = new System.Drawing.Size(80, 13);
+            this.label79.TabIndex = 197;
+            this.label79.Text = "Defense Equip:";
+            this.label79.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label80
+            // 
+            this.label80.AutoSize = true;
+            this.label80.Location = new System.Drawing.Point(12, 248);
+            this.label80.Name = "label80";
+            this.label80.Size = new System.Drawing.Size(71, 13);
+            this.label80.TabIndex = 196;
+            this.label80.Text = "Attack Equip:";
+            this.label80.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label83
+            // 
+            this.label83.AutoSize = true;
+            this.label83.Location = new System.Drawing.Point(6, 275);
+            this.label83.Name = "label83";
+            this.label83.Size = new System.Drawing.Size(77, 13);
+            this.label83.TabIndex = 190;
+            this.label83.Text = "Defense Base:";
+            this.label83.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label84
+            // 
+            this.label84.AutoSize = true;
+            this.label84.Location = new System.Drawing.Point(15, 221);
+            this.label84.Name = "label84";
+            this.label84.Size = new System.Drawing.Size(68, 13);
+            this.label84.TabIndex = 191;
+            this.label84.Text = "Attack Base:";
+            this.label84.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label85
+            // 
+            this.label85.AutoSize = true;
+            this.label85.Location = new System.Drawing.Point(19, 329);
+            this.label85.Name = "label85";
+            this.label85.Size = new System.Drawing.Size(64, 13);
+            this.label85.TabIndex = 192;
+            this.label85.Text = "Agility Base:";
+            this.label85.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label86
+            // 
+            this.label86.AutoSize = true;
+            this.label86.Location = new System.Drawing.Point(16, 411);
+            this.label86.Name = "label86";
+            this.label86.Size = new System.Drawing.Size(67, 13);
+            this.label86.TabIndex = 193;
+            this.label86.Text = "Move Equip:";
+            this.label86.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label87
+            // 
+            this.label87.AutoSize = true;
+            this.label87.Location = new System.Drawing.Point(34, 556);
+            this.label87.Name = "label87";
+            this.label87.Size = new System.Drawing.Size(49, 13);
+            this.label87.TabIndex = 186;
+            this.label87.Text = "Max MP:";
+            this.label87.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label88
+            // 
+            this.label88.AutoSize = true;
+            this.label88.Location = new System.Drawing.Point(18, 527);
+            this.label88.Name = "label88";
+            this.label88.Size = new System.Drawing.Size(65, 13);
+            this.label88.TabIndex = 187;
+            this.label88.Text = "Present MP:";
+            this.label88.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label89
+            // 
+            this.label89.AutoSize = true;
+            this.label89.Location = new System.Drawing.Point(35, 498);
+            this.label89.Name = "label89";
+            this.label89.Size = new System.Drawing.Size(48, 13);
+            this.label89.TabIndex = 188;
+            this.label89.Text = "Max HP:";
+            this.label89.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label90
+            // 
+            this.label90.AutoSize = true;
+            this.label90.Location = new System.Drawing.Point(19, 470);
+            this.label90.Name = "label90";
+            this.label90.Size = new System.Drawing.Size(64, 13);
+            this.label90.TabIndex = 189;
+            this.label90.Text = "Present HP:";
+            this.label90.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label91
+            // 
+            this.label91.AutoSize = true;
+            this.label91.Location = new System.Drawing.Point(20, 440);
+            this.label91.Name = "label91";
+            this.label91.Size = new System.Drawing.Size(63, 13);
+            this.label91.TabIndex = 185;
+            this.label91.Text = "Experience:";
+            this.label91.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label92
+            // 
+            this.label92.AutoSize = true;
+            this.label92.Location = new System.Drawing.Point(47, 170);
+            this.label92.Name = "label92";
+            this.label92.Size = new System.Drawing.Size(36, 13);
+            this.label92.TabIndex = 184;
+            this.label92.Text = "Level:";
+            this.label92.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // label66
+            // 
+            this.label66.AutoSize = true;
+            this.label66.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label66.Location = new System.Drawing.Point(15, 33);
+            this.label66.Name = "label66";
+            this.label66.Size = new System.Drawing.Size(529, 13);
+            this.label66.TabIndex = 145;
+            this.label66.Text = "                                                                                 " +
+    "                                                                                " +
+    "             ";
+            // 
+            // label67
+            // 
+            this.label67.AutoSize = true;
+            this.label67.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, ((System.Drawing.FontStyle)((System.Drawing.FontStyle.Bold | System.Drawing.FontStyle.Underline))), System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label67.Location = new System.Drawing.Point(22, 126);
+            this.label67.Name = "label67";
+            this.label67.Size = new System.Drawing.Size(520, 13);
+            this.label67.TabIndex = 144;
+            this.label67.Text = "Stats                                                                            " +
+    "                                             ";
+            // 
+            // label68
+            // 
+            this.label68.AutoSize = true;
+            this.label68.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label68.Location = new System.Drawing.Point(243, 148);
+            this.label68.Name = "label68";
+            this.label68.Size = new System.Drawing.Size(131, 13);
+            this.label68.TabIndex = 142;
+            this.label68.Text = "New                                  ";
+            // 
+            // label69
+            // 
+            this.label69.AutoSize = true;
+            this.label69.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label69.Location = new System.Drawing.Point(90, 148);
+            this.label69.Name = "label69";
+            this.label69.Size = new System.Drawing.Size(137, 13);
+            this.label69.TabIndex = 143;
+            this.label69.Text = "Current                                ";
+            // 
+            // label70
+            // 
+            this.label70.AutoSize = true;
+            this.label70.Location = new System.Drawing.Point(203, 72);
+            this.label70.Name = "label70";
+            this.label70.Size = new System.Drawing.Size(32, 13);
+            this.label70.TabIndex = 137;
+            this.label70.Text = "Gold:";
+            this.label70.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForceCDNewGoldTb
+            // 
+            this.shiningForceCDNewGoldTb.Location = new System.Drawing.Point(411, 69);
+            this.shiningForceCDNewGoldTb.Name = "shiningForceCDNewGoldTb";
+            this.shiningForceCDNewGoldTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDNewGoldTb.TabIndex = 141;
+            // 
+            // label71
+            // 
+            this.label71.AutoSize = true;
+            this.label71.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label71.Location = new System.Drawing.Point(408, 52);
+            this.label71.Name = "label71";
+            this.label71.Size = new System.Drawing.Size(134, 13);
+            this.label71.TabIndex = 138;
+            this.label71.Text = "New                                   ";
+            // 
+            // shiningForceCDCurrentGoldTb
+            // 
+            this.shiningForceCDCurrentGoldTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDCurrentGoldTb.Location = new System.Drawing.Point(241, 69);
+            this.shiningForceCDCurrentGoldTb.Name = "shiningForceCDCurrentGoldTb";
+            this.shiningForceCDCurrentGoldTb.ReadOnly = true;
+            this.shiningForceCDCurrentGoldTb.Size = new System.Drawing.Size(130, 20);
+            this.shiningForceCDCurrentGoldTb.TabIndex = 140;
+            // 
+            // label72
+            // 
+            this.label72.AutoSize = true;
+            this.label72.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label72.Location = new System.Drawing.Point(238, 52);
+            this.label72.Name = "label72";
+            this.label72.Size = new System.Drawing.Size(134, 13);
+            this.label72.TabIndex = 139;
+            this.label72.Text = "Current                               ";
+            // 
+            // label73
+            // 
+            this.label73.AutoSize = true;
+            this.label73.Location = new System.Drawing.Point(145, 106);
+            this.label73.Name = "label73";
+            this.label73.Size = new System.Drawing.Size(89, 13);
+            this.label73.TabIndex = 135;
+            this.label73.Text = "Select Character:";
+            this.label73.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForceCDSelectCharacterCmb
+            // 
+            this.shiningForceCDSelectCharacterCmb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.5F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDSelectCharacterCmb.FormattingEnabled = true;
+            this.shiningForceCDSelectCharacterCmb.Location = new System.Drawing.Point(239, 103);
+            this.shiningForceCDSelectCharacterCmb.Name = "shiningForceCDSelectCharacterCmb";
+            this.shiningForceCDSelectCharacterCmb.Size = new System.Drawing.Size(132, 21);
+            this.shiningForceCDSelectCharacterCmb.TabIndex = 136;
+            this.shiningForceCDSelectCharacterCmb.SelectedIndexChanged += new System.EventHandler(this.shiningForceCDSelectCharacterCmb_SelectedIndexChanged);
+            // 
+            // label74
+            // 
+            this.label74.AutoSize = true;
+            this.label74.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label74.Location = new System.Drawing.Point(10, 10);
+            this.label74.Name = "label74";
+            this.label74.Size = new System.Drawing.Size(150, 20);
+            this.label74.TabIndex = 134;
+            this.label74.Text = "Shining Force CD";
+            // 
+            // shiningForceCDCoverPb
+            // 
+            this.shiningForceCDCoverPb.Image = ((System.Drawing.Image)(resources.GetObject("shiningForceCDCoverPb.Image")));
+            this.shiningForceCDCoverPb.Location = new System.Drawing.Point(555, 7);
+            this.shiningForceCDCoverPb.Name = "shiningForceCDCoverPb";
+            this.shiningForceCDCoverPb.Size = new System.Drawing.Size(143, 185);
+            this.shiningForceCDCoverPb.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
+            this.shiningForceCDCoverPb.TabIndex = 133;
+            this.shiningForceCDCoverPb.TabStop = false;
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(714, 571);
+            this.ClientSize = new System.Drawing.Size(714, 740);
             this.Controls.Add(this.browseBtn);
             this.Controls.Add(this.saveStateFileTb);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.menuStrip1);
+            this.Controls.Add(this.shiningForceCDPanel);
+            this.Controls.Add(this.shiningForce2Panel);
             this.Controls.Add(this.shiningForcePanel);
             this.Controls.Add(this.shiningPanel);
             this.MainMenuStrip = this.menuStrip1;
@@ -1235,6 +2677,12 @@
             this.shiningForcePanel.ResumeLayout(false);
             this.shiningForcePanel.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.shiningForcePic)).EndInit();
+            this.shiningForce2Panel.ResumeLayout(false);
+            this.shiningForce2Panel.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
+            this.shiningForceCDPanel.ResumeLayout(false);
+            this.shiningForceCDPanel.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.shiningForceCDCoverPb)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -1349,6 +2797,134 @@
         private System.Windows.Forms.Label label24;
         private System.Windows.Forms.ListBox shiningForceItemsLB;
         private System.Windows.Forms.Label label8;
+        private System.Windows.Forms.Panel shiningForce2Panel;
+        private System.Windows.Forms.ListBox shiningForce2MagicListBox;
+        private System.Windows.Forms.Label label25;
+        private System.Windows.Forms.ListBox shiningForce2ItemListBox;
+        private System.Windows.Forms.Label label30;
+        private System.Windows.Forms.TextBox shiningForce2NewDefenseBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2NewMoveEquipTb;
+        private System.Windows.Forms.Button shiningForce2UpdateSaveStateBtn;
+        private System.Windows.Forms.Label label31;
+        private System.Windows.Forms.Label label32;
+        private System.Windows.Forms.Label label37;
+        private System.Windows.Forms.Label label44;
+        private System.Windows.Forms.TextBox shiningForce2NewAttackBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2NewAgilityBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2CurDefenseBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2CurAttackBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2CurAgilityBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2CurMoveEquipTb;
+        private System.Windows.Forms.Label label45;
+        private System.Windows.Forms.Label label46;
+        private System.Windows.Forms.Label label47;
+        private System.Windows.Forms.Label label48;
+        private System.Windows.Forms.TextBox shiningForce2NewMaxMPTb;
+        private System.Windows.Forms.TextBox shiningForce2NewPresentMPTb;
+        private System.Windows.Forms.TextBox shiningForce2NewMaxHPTb;
+        private System.Windows.Forms.TextBox shiningForce2NewPresentHPTb;
+        private System.Windows.Forms.TextBox shiningForce2MaxMPTb;
+        private System.Windows.Forms.TextBox shiningForce2PresentMPTb;
+        private System.Windows.Forms.TextBox shiningForce2MaxHPTb;
+        private System.Windows.Forms.TextBox shiningForce2PresentHPTb;
+        private System.Windows.Forms.Label label49;
+        private System.Windows.Forms.Label label50;
+        private System.Windows.Forms.TextBox shiningForce2NewExpTb;
+        private System.Windows.Forms.TextBox shiningForce2CurExpTb;
+        private System.Windows.Forms.Label label51;
+        private System.Windows.Forms.Label label52;
+        private System.Windows.Forms.Label label53;
+        private System.Windows.Forms.TextBox shiningForce2LevelTb;
+        private System.Windows.Forms.Label label54;
+        private System.Windows.Forms.Label label55;
+        private System.Windows.Forms.TextBox shiningForce2NewGoldTb;
+        private System.Windows.Forms.Label label56;
+        private System.Windows.Forms.TextBox shiningForce2CurrentGoldTb;
+        private System.Windows.Forms.Label label57;
+        private System.Windows.Forms.Label label58;
+        private System.Windows.Forms.ComboBox shiningForce2CharacterCmb;
+        private System.Windows.Forms.Label label59;
+        private System.Windows.Forms.PictureBox pictureBox1;
+        private System.Windows.Forms.ToolStripMenuItem shiningForce2ToolStripMenuItem;
+        private System.Windows.Forms.Label label61;
+        private System.Windows.Forms.TextBox shiningForce2DefeatsTb;
+        private System.Windows.Forms.Label label60;
+        private System.Windows.Forms.TextBox shiningForce2KillsTb;
+        private System.Windows.Forms.Label label62;
+        private System.Windows.Forms.TextBox shiningForce2NewAttackEquipTb;
+        private System.Windows.Forms.TextBox shiningForce2CurAttackEquipTb;
+        private System.Windows.Forms.TextBox shiningForce2NewMoveBaseTb;
+        private System.Windows.Forms.Label label64;
+        private System.Windows.Forms.TextBox shiningForce2CurMoveBaseTb;
+        private System.Windows.Forms.TextBox shiningForce2NewDefenseEquipTb;
+        private System.Windows.Forms.Label label63;
+        private System.Windows.Forms.TextBox shiningForce2CurDefenseEquipTb;
+        private System.Windows.Forms.Label label65;
+        private System.Windows.Forms.TextBox shiningForce2NewAgilityEquipTb;
+        private System.Windows.Forms.TextBox shiningForce2CurAgilityEquipTb;
+        private System.Windows.Forms.Panel shiningForceCDPanel;
+        private System.Windows.Forms.ToolStripMenuItem shiningForceCDToolStripMenuItem;
+        private System.Windows.Forms.Label label66;
+        private System.Windows.Forms.Label label67;
+        private System.Windows.Forms.Label label68;
+        private System.Windows.Forms.Label label69;
+        private System.Windows.Forms.Label label70;
+        private System.Windows.Forms.TextBox shiningForceCDNewGoldTb;
+        private System.Windows.Forms.Label label71;
+        private System.Windows.Forms.TextBox shiningForceCDCurrentGoldTb;
+        private System.Windows.Forms.Label label72;
+        private System.Windows.Forms.Label label73;
+        private System.Windows.Forms.ComboBox shiningForceCDSelectCharacterCmb;
+        private System.Windows.Forms.Label label74;
+        private System.Windows.Forms.PictureBox shiningForceCDCoverPb;
+        private System.Windows.Forms.Label label75;
+        private System.Windows.Forms.Label label76;
+        private System.Windows.Forms.Label label79;
+        private System.Windows.Forms.Label label80;
+        private System.Windows.Forms.Label label83;
+        private System.Windows.Forms.Label label84;
+        private System.Windows.Forms.Label label85;
+        private System.Windows.Forms.Label label86;
+        private System.Windows.Forms.Label label87;
+        private System.Windows.Forms.Label label88;
+        private System.Windows.Forms.Label label89;
+        private System.Windows.Forms.Label label90;
+        private System.Windows.Forms.Label label91;
+        private System.Windows.Forms.Label label92;
+        private System.Windows.Forms.TextBox shiningForceCDCurrentClassTb;
+        private System.Windows.Forms.Label label94;
+        private System.Windows.Forms.TextBox shiningForceCDNewAgilityEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDAgilityEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewMoveBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDMoveBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewDefenseEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDDefenseEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewAttackEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDAttackEquipTb;
+        private System.Windows.Forms.ListBox shiningForceCDMagicListBox;
+        private System.Windows.Forms.Label label93;
+        private System.Windows.Forms.ListBox shiningForceCDItemsListBox;
+        private System.Windows.Forms.TextBox shiningForceCDNewDefenseBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewMoveEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewAttackBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewAgilityBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDDefenseBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDAttackBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDAgilityBaseTb;
+        private System.Windows.Forms.TextBox shiningForceCDMoveEquipTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewMaxMPTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewPresentMPTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewMaxHPTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewPresentHPTb;
+        private System.Windows.Forms.TextBox shiningForceCDMaxMPTb;
+        private System.Windows.Forms.TextBox shiningForceCDPresentMPTb;
+        private System.Windows.Forms.TextBox shiningForceCDMaxHPTb;
+        private System.Windows.Forms.TextBox shiningForceCDPresentHPTb;
+        private System.Windows.Forms.TextBox shiningForceCDNewExperienceTb;
+        private System.Windows.Forms.TextBox shiningForceCDExperienceTb;
+        private System.Windows.Forms.TextBox shiningForceCDCurrentLevelTb;
+        private System.Windows.Forms.Button shiningForceCDUpdateSaveStateBtn;
+        private System.Windows.Forms.Label label95;
     }
 }
 

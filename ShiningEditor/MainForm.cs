@@ -1,13 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.IO;
 
 namespace ShiningEditor
 {
@@ -19,7 +15,18 @@ namespace ShiningEditor
             All,
             ShiningInTheDarkness,
             ShiningForce,
+            ShiningForce2,
+            ShiningForceCD,
             None
+        }
+
+        public enum ShiningForceCDBook
+        {
+            Book1TowardsTheRootOfEvil,
+            Book2TheEvilGodAwakes,
+            Book3ANewChallenge,
+            Book4TheLastBattle,
+            UnknownBook
         }
         #endregion
 
@@ -27,9 +34,35 @@ namespace ShiningEditor
         private bool fileLoaded;
         private const string SHINING_GOLD_LOC = "3B1C";
         private const string SHINING_FORCE_GOLD_LOC = "C107";
+        private const string SHINING_FORCE_2_GOLD_LOC = "11A7A";
+        private const string SHINING_FORCE_CD_GOLD_LOC = "0E078";
+        private const string SHINING_FORCE_CD_BOOK_INDEX_OFFSET = "E0E1";
+        private const int SfcdCharTableBase = 0x0D522;
+        private const int SfcdCharSlotSize = 0x38;
+        private const int SfcdNameOffset = 0x2E; // inside slot record
+        private const int SfcdNameLength = 0x0A; // 10 bytes
+        private const int SFCD_PLAYER_NAME_OFFSET = 0x0D518;
+        private const int SFCD_PLAYER_NAME_LENGTH = 10;
+        private const int SfcdClassIdOffset = 0x00;
+
+        // One known good class-table start. If you later confirm a different offset for your format/version,
+        // just change this constant.
+        private const int SfcdClassTableOffset = 0x0D76A0;        
+        
         private AppPanel activePanel;
         private List<ShiningForceItem> shiningForceItemsList;
         private List<ShiningForceMagicItem> shiningForceMagicList;
+        private List<ShiningForce2Item> shiningForce2ItemsList;
+        private List<ShiningForce2MagicItem> shiningForce2MagicList;
+        private ShiningForceCDBook _shiningForceCDBook;
+        private Dictionary<byte, string> _shiningForceCDItemNamesByRawId;
+        private List<ShiningForceCDMagicItem> shiningForceCDMagicList;
+
+        // Cache is per-loaded file path (so changing files reloads table).
+        private string? _sfcdClassTableLoadedFromPath;
+        private List<string>? _sfcdClassTable;
+
+        private readonly Dictionary<ShiningForceCDBook, Dictionary<byte, string>> _itemNamesByBook = new();
         #endregion
 
         #region - Class Properties -
@@ -83,6 +116,23 @@ namespace ShiningEditor
             ShowPanel(AppPanel.ShiningForce, true);
         }
 
+        private void shiningForce2ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ActivePanel = AppPanel.ShiningForce2;
+            saveStateFileTb.Text = string.Empty;
+            ResetShiningForce2Controls(true);
+            PopulateShiningForce2CharacterList();
+            ShowPanel(AppPanel.ShiningForce2, true);
+        }
+
+        private void shiningForceCDToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ActivePanel = AppPanel.ShiningForceCD;
+            saveStateFileTb.Text = string.Empty;
+            ResetShiningForceCDControls(true, true);            
+            ShowPanel(AppPanel.ShiningForceCD, true);
+        }
+
         private void viewErrorLogToolStripMenuItem_Click(object sender, EventArgs e)
         {
             ErrorLogView errLogView = new ErrorLogView();
@@ -106,7 +156,7 @@ namespace ShiningEditor
             if (game != string.Empty)
             {
                 // Set the open file dialog properties
-                openFD.Title = "Select a " + game + " save state file";
+                openFD.Title = $"Select a {game} save state file";
                 openFD.InitialDirectory = System.Environment.GetFolderPath(Environment.SpecialFolder.Personal);
                 openFD.FileName = "";
 
@@ -126,6 +176,21 @@ namespace ShiningEditor
                             PopulateShiningForceItemsList();
                             PopulateShiningForceMagicList();
                             break;
+
+                        case AppPanel.ShiningForce2:
+                            PopulateShiningForce2CurrentGold();
+                            PopulateShiningForce2ItemsList();
+                            PopulateShiningForce2MagicList();
+                            break;
+
+                        case AppPanel.ShiningForceCD:
+                            ResetSfcdCaches();
+                            DetermineShiningForceCDCurrentBook();
+                            PopulateShiningForceCDCurrentGold();                            
+                            PopulateShiningForceCDItemsList(_shiningForceCDBook);
+                            PopulateShiningForceCDMagicList();
+                            PopulateShiningForceCDCharacterList(false);
+                            break;
                     }
                 }
                 else
@@ -135,7 +200,7 @@ namespace ShiningEditor
             }
             else
             {
-                MessageBox.Show("You must first select a Phantasy Star game from the menu so the correct game data is loaded.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("You must first select a game from the menu so the correct game data is loaded.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -145,6 +210,7 @@ namespace ShiningEditor
             {
                 if (FileLoaded)
                 {
+                    ResetShiningControls(false);
                     PopulateShiningCharacterDetails(shiningCharacterCmb.SelectedItem as ShiningCharacterItem);
                 }
                 else
@@ -169,6 +235,42 @@ namespace ShiningEditor
             }
         }
 
+        private void shiningForce2CharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (shiningForce2CharacterCmb.SelectedIndex >= 0)
+            {
+                if (FileLoaded)
+                {
+                    PopulateShiningForce2CharacterDetails(shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem);
+                }
+                else
+                {
+                    MessageBox.Show("You must load a save state file before you can view character data.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+        private void shiningForceCDSelectCharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (shiningForceCDSelectCharacterCmb.SelectedIndex >= 0)
+            {
+                if (FileLoaded)
+                {
+                    ShiningForceCDCharacterItem selectedCharacter = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
+                    if (selectedCharacter == null)
+                    {
+                        return;
+                    }
+
+                    PopulateShiningForceCDCharacterDetails(selectedCharacter);
+                }
+                else
+                {
+                    MessageBox.Show("You must load a save state file before you can view character data.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
         private void updSaveStateBtn_Click(object sender, EventArgs e)
         {
             UpdateShiningSaveState();
@@ -177,6 +279,16 @@ namespace ShiningEditor
         private void updShiningForceSaveStateBtn_Click(object sender, EventArgs e)
         {
             UpdateShiningForceSaveState();
+        }
+
+        private void shiningForce2UpdateSaveStateBtn_Click(object sender, EventArgs e)
+        {
+            UpdateShiningForce2SaveState();
+        }
+
+        private void shiningForceCDUpdateSaveStateBtn_Click(object sender, EventArgs e)
+        {
+            UpdateShiningForceCDSaveState();
         }
         #endregion
 
@@ -188,6 +300,8 @@ namespace ShiningEditor
                 case AppPanel.All:
                     shiningPanel.Visible = show;
                     shiningForcePanel.Visible = show;
+                    shiningForce2Panel.Visible = show;
+                    shiningForceCDPanel.Visible = show;
                     break;
 
                 case AppPanel.ShiningInTheDarkness:
@@ -195,6 +309,8 @@ namespace ShiningEditor
                     if (show)
                     {
                         shiningForcePanel.Visible = !show;
+                        shiningForce2Panel.Visible = !show;
+                        shiningForceCDPanel.Visible = !show;
                     }
                     break;
 
@@ -203,6 +319,28 @@ namespace ShiningEditor
                     if (show)
                     {
                         shiningPanel.Visible = !show;
+                        shiningForce2Panel.Visible = !show;
+                        shiningForceCDPanel.Visible = !show;
+                    }
+                    break;
+
+                case AppPanel.ShiningForce2:
+                    shiningForce2Panel.Visible = show;
+                    if (show)
+                    {
+                        shiningPanel.Visible = !show;
+                        shiningForcePanel.Visible = !show;
+                        shiningForceCDPanel.Visible = !show;
+                    }
+                    break;
+
+                case AppPanel.ShiningForceCD:
+                    shiningForceCDPanel.Visible = show;
+                    if (show)
+                    {
+                        shiningPanel.Visible = !show;
+                        shiningForcePanel.Visible = !show;
+                        shiningForce2Panel.Visible = !show;
                     }
                     break;
             }
@@ -211,7 +349,7 @@ namespace ShiningEditor
         private void ShowControl(TextBox control, bool show)
         {
             control.Visible = show;
-        }
+        }        
 
         private void ResetShiningControls(bool resetCharacterList)
         {
@@ -219,6 +357,7 @@ namespace ShiningEditor
             {
                 shiningCharacterCmb.SelectedIndex = -1;
             }
+
             shiningCurGoldTb.Text = string.Empty;
             shiningNewGoldTb.Text = string.Empty;
             shiningLevelTb.Text = string.Empty;
@@ -302,6 +441,14 @@ namespace ShiningEditor
 
                 case AppPanel.ShiningForce:
                     game = "Shining Force";
+                    break;
+
+                case AppPanel.ShiningForce2:
+                    game = "Shining Force 2";
+                    break;
+
+                case AppPanel.ShiningForceCD:
+                    game = "Shining Force CD";
                     break;
             }
 
@@ -1506,6 +1653,1461 @@ namespace ShiningEditor
             shiningForceMagicLB.DisplayMember = "Name";
         }
 
+        private string GetShiningForce2CurrentGold()
+        {
+            string hexVal = GetValueByOffset(SHINING_FORCE_2_GOLD_LOC, 2);
+            long gold = long.Parse(hexVal, System.Globalization.NumberStyles.HexNumber);
+            return gold.ToString();
+        }
+
+        private void PopulateShiningForce2CurrentGold()
+        {
+            shiningForce2CurrentGoldTb.Text = GetShiningForce2CurrentGold();
+        }
+
+        private void ResetShiningForce2Controls(bool resetCharacterList)
+        {
+            if (resetCharacterList)
+            {
+                shiningForce2CharacterCmb.SelectedIndex = -1;
+            }
+
+            shiningForce2NewGoldTb.Text = "";
+            shiningForce2LevelTb.Text = "";
+            shiningForce2CurAttackBaseTb.Text = "";
+            shiningForce2NewAttackBaseTb.Text = "";
+            shiningForce2CurAttackEquipTb.Text = "";
+            shiningForce2NewAttackEquipTb.Text = "";
+            shiningForce2CurDefenseBaseTb.Text = "";
+            shiningForce2NewDefenseBaseTb.Text = "";
+            shiningForce2CurDefenseEquipTb.Text = "";
+            shiningForce2NewDefenseBaseTb.Text = "";
+            shiningForce2CurAgilityBaseTb.Text = "";
+            shiningForce2NewAgilityBaseTb.Text = "";
+            shiningForce2CurAgilityEquipTb.Text = "";
+            shiningForce2NewAgilityEquipTb.Text = "";
+            shiningForce2CurMoveBaseTb.Text = "";
+            shiningForce2NewMoveBaseTb.Text = "";
+            shiningForce2CurMoveEquipTb.Text = "";
+            shiningForce2NewMoveEquipTb.Text = "";
+            shiningForce2CurExpTb.Text = "";
+            shiningForce2NewExpTb.Text = "";
+            shiningForce2PresentHPTb.Text = "";
+            shiningForce2NewPresentHPTb.Text = "";
+            shiningForce2MaxHPTb.Text = "";
+            shiningForce2NewMaxHPTb.Text = "";
+            shiningForce2PresentMPTb.Text = "";
+            shiningForce2NewPresentMPTb.Text = "";
+            shiningForce2MaxMPTb.Text = "";
+            shiningForce2NewMaxMPTb.Text = "";
+            shiningForce2KillsTb.Text = "";
+            shiningForce2DefeatsTb.Text = "";
+            shiningForce2ItemListBox.Items.Clear();
+            shiningForce2MagicListBox.Items.Clear();
+        }
+
+        private void PopulateShiningForce2CharacterList()
+        {
+            shiningForce2CharacterCmb.Items.Clear();
+
+            ShiningForce2CharacterItem heroItem = new ShiningForce2CharacterItem("Bowie (Hero)",
+                "10C83",
+                "10C8A",
+                "10C8B",
+                "10C8C",
+                "10C8D",
+                "10C8E",
+                "10C8F",
+                "10C90",
+                "10C91",
+                "10CA8",
+                "10C86",
+                "10C84",
+                "10C89",
+                "10C88",
+                new string[] { "10C99", "10C98", "10C9D", "10C9F"},
+                new string[] { "10CA0", "10CA1", "10CA2", "10CA3"},
+                "10CAA", 
+                "10CAE");
+            shiningForce2CharacterCmb.Items.Add(heroItem);
+
+            ShiningForce2CharacterItem sarahItem = new ShiningForce2CharacterItem("Sarah",
+                "10CBB",
+                "10CC2",
+                "10CC3",
+                "10CC4",
+                "10CC5",
+                "10CC6",
+                "10CC7",
+                "10CC8",
+                "10CC9",
+                "10CE0",
+                "10CBE",
+                "10CBC",
+                "10CC1",
+                "10CC0",
+                new string[] { "10CD1", "10CD3", "10CD5", "10CD7" },
+                new string[] { "10CD8", "10CD9", "10CDA", "10CDB" },
+                "10CE2",
+                "10CE6");
+            shiningForce2CharacterCmb.Items.Add(sarahItem);
+
+            ShiningForce2CharacterItem chesterItem = new ShiningForce2CharacterItem("Chester",
+                "10CF3",
+                "10CFA",
+                "10CFB",
+                "10CFC",
+                "10CFD",
+                "10CFE",
+                "10CFF",
+                "10D00",
+                "10D01",
+                "10D18",
+                "10CF6",
+                "10CF4",
+                "10CF9",
+                "10CF8",
+                new string[] { "10D09", "10D0B", "10D0D", "10D0F" },
+                new string[] { "10D10", "10D11", "10D12", "10D13" },
+                "10D1A",
+                "10D1E");
+            shiningForce2CharacterCmb.Items.Add(chesterItem);
+
+            ShiningForce2CharacterItem jahaItem = new ShiningForce2CharacterItem("Jaha",
+                "10D2B",
+                "10D32",
+                "10D33",
+                "10D34",
+                "10D35",
+                "10D36",
+                "10D37",
+                "10D38",
+                "10D39",
+                "10D50",
+                "10D2E",
+                "10D2C",
+                "10D31",
+                "10D30",
+                new string[] { "10D41", "10D43", "10D45", "10D47" },
+                new string[] { "10D48", "10D49", "10D4A", "10D4B" },
+                "10D52",
+                "10D56");
+            shiningForce2CharacterCmb.Items.Add(jahaItem);
+
+            ShiningForce2CharacterItem kazinItem = new ShiningForce2CharacterItem("Kazin",
+                "10D63",
+                "10D6A",
+                "10D6B",
+                "10D6C",
+                "10D6D",
+                "10D6E",
+                "10D6F",
+                "10D70",
+                "10D71",
+                "10D88",
+                "10D66",
+                "10D64",
+                "10D69",
+                "10D68",
+                new string[] { "10D79", "10D7B", "10D7D", "10D7F" },
+                new string[] { "10D80", "10D81", "10D82", "10D83" },
+                "10D8A",
+                "10D8E");
+            shiningForce2CharacterCmb.Items.Add(kazinItem);
+
+            ShiningForce2CharacterItem sladeItem = new ShiningForce2CharacterItem("Slade",
+                "10D9B",
+                "10DA2",
+                "10DA3",
+                "10DA4",
+                "10DA5",
+                "10DA6",
+                "10DA7",
+                "10DA8",
+                "10DA9",
+                "10DC0",
+                "10D9E",
+                "10D9C",
+                "10DA1",
+                "10DA0",
+                new string[] { "10DB1", "10DB3", "10DB5", "10DB7" },
+                new string[] { "10DB8", "10DB9", "10DBA", "10DBB" },
+                "10DC2",
+                "10DC6");
+            shiningForce2CharacterCmb.Items.Add(sladeItem);
+
+            ShiningForce2CharacterItem kiwiItem = new ShiningForce2CharacterItem("Kiwi",
+                "10DD3",
+                "10DDA",
+                "10DDB",
+                "10DDC",
+                "10DDD",
+                "10DDE",
+                "10DDF",
+                "10DE0",
+                "10DE1",
+                "10DF8",
+                "10DD6",
+                "10DD4",
+                "10DD9",
+                "10DD8",
+                new string[] { "10DE9", "10DEB", "10DED", "10DEF" },
+                new string[] { "10DF0", "10DF1", "10DF2", "10DF3" },
+                "10DFA",
+                "10DFE");
+            shiningForce2CharacterCmb.Items.Add(kiwiItem);
+
+            ShiningForce2CharacterItem peterItem = new ShiningForce2CharacterItem("Peter",
+                "10E0B",
+                "10E12",
+                "10E13",
+                "10E14",
+                "10E15",
+                "10E16",
+                "10E17",
+                "10E18",
+                "10E19",
+                "10E30",
+                "10E0E",
+                "10E0C",
+                "10E11",
+                "10E10",
+                new string[] { "10E21", "10E23", "10E25", "10E27" },
+                new string[] { "10E28", "10E29", "10E2A", "10E2B" },
+                "10E32",
+                "10E36");
+            shiningForce2CharacterCmb.Items.Add(peterItem);
+
+            ShiningForce2CharacterItem mayItem = new ShiningForce2CharacterItem("May",
+                "10E43",
+                "10E4A",
+                "10E4B",
+                "10E4C",
+                "10E4D",
+                "10E4E",
+                "10E4F",
+                "10E50",
+                "10E51",
+                "10E68",
+                "10E46",
+                "10E44",
+                "10E49",
+                "10E48",
+                new string[] { "10E59", "10E5B", "10E5D", "10E5F" },
+                new string[] { "10E60", "10E61", "10E62", "10E63" },
+                "10E6A",
+                "10E6E");
+            shiningForce2CharacterCmb.Items.Add(mayItem);
+
+            ShiningForce2CharacterItem gerhaltItem = new ShiningForce2CharacterItem("Gerhalt",
+                "10E7B",
+                "10E82",
+                "10E83",
+                "10E84",
+                "10E85",
+                "10E86",
+                "10E87",
+                "10E88",
+                "10E89",
+                "10EA0",
+                "10E7E",
+                "10E7C",
+                "10E81",
+                "10E80",
+                new string[] { "10E91", "10E93", "10E95", "10E97" },
+                new string[] { "10E98", "10E99", "10E9A", "10E9B" },
+                "10EA2",
+                "10EA6");
+            shiningForce2CharacterCmb.Items.Add(gerhaltItem);
+
+            ShiningForce2CharacterItem lukeItem = new ShiningForce2CharacterItem("Luke",
+                "10EB3",
+                "10EBA",
+                "10EBB",
+                "10EBC",
+                "10EBD",
+                "10EBE",
+                "10EBF",
+                "10EC0",
+                "10EC1",
+                "10ED8",
+                "10EB6",
+                "10EB4",
+                "10EB9",
+                "10EB8",
+                new string[] { "10EC9", "10ECB", "10ECD", "10ECF" },
+                new string[] { "10ED0", "10ED1", "10ED2", "10ED3" },
+                "10EDA",
+                "10EDE");
+            shiningForce2CharacterCmb.Items.Add(lukeItem);
+
+            ShiningForce2CharacterItem rohdeItem = new ShiningForce2CharacterItem("Rohde",
+                "10EEB",
+                "10EF2",
+                "10EF3",
+                "10EF4",
+                "10EF5",
+                "10EF6",
+                "10EF7",
+                "10EF8",
+                "10EF9",
+                "10F10",
+                "10EEE",
+                "10EEC",
+                "10EF1",
+                "10EF0",
+                new string[] { "10F01", "10F03", "10F05", "10F07" },
+                new string[] { "10F08", "10F09", "10F0A", "10F0B" },
+                "10F12",
+                "10F16");
+            shiningForce2CharacterCmb.Items.Add(rohdeItem);
+
+            ShiningForce2CharacterItem rickItem = new ShiningForce2CharacterItem("Rick",
+                "10F23",
+                "10F2A",
+                "10F2B",
+                "10F2C",
+                "10F2D",
+                "10F2E",
+                "10F2F",
+                "10F30",
+                "10F31",
+                "10F48",
+                "10F26",
+                "10F24",
+                "10F29",
+                "10F28",
+                new string[] { "10F39", "10F3B", "10F3D", "10F3F" },
+                new string[] { "10F40", "10F41", "10F42", "10F43" },
+                "10F4A",
+                "10F4E");
+            shiningForce2CharacterCmb.Items.Add(rickItem);
+
+            ShiningForce2CharacterItem elricItem = new ShiningForce2CharacterItem("Elric",
+                "10F5B",
+                "10F62",
+                "10F63",
+                "10F64",
+                "10F65",
+                "10F66",
+                "10F67",
+                "10F68",
+                "10F69",
+                "10F80",
+                "10F5E",
+                "10F5C",
+                "10F61",
+                "10F60",
+                new string[] { "10F71", "10F73", "10F75", "10F77" },
+                new string[] { "10F78", "10F79", "10F7A", "10F7B" },
+                "10F82",
+                "10F86");
+            shiningForce2CharacterCmb.Items.Add(elricItem);
+
+            ShiningForce2CharacterItem ericItem = new ShiningForce2CharacterItem("Eric",
+                "10F93",
+                "10F9A",
+                "10F9B",
+                "10F9C",
+                "10F9D",
+                "10F9E",
+                "10F9F",
+                "10FA0",
+                "10FA1",
+                "10FB8",
+                "10F96",
+                "10F94",
+                "10F99",
+                "10F98",
+                new string[] { "10FA9", "10FAB", "10FAD", "10FAF" },
+                new string[] { "10FB0", "10FB1", "10FB2", "10FB3" },
+                "10FBA",
+                "10FBE");
+            shiningForce2CharacterCmb.Items.Add(ericItem);
+
+            ShiningForce2CharacterItem karnaItem = new ShiningForce2CharacterItem("Karna",
+                "10FCB",
+                "10FD2",
+                "10FD3",
+                "10FD4",
+                "10FD5",
+                "10FD6",
+                "10FD7",
+                "10FD8",
+                "10FD9",
+                "10FF0",
+                "10FCE",
+                "10FCC",
+                "10FD1",
+                "10FD0",
+                new string[] { "10FE1", "10FE3", "10FE5", "10FE7" },
+                new string[] { "10FE8", "10FE9", "10FEA", "10FEB" },
+                "10FF2",
+                "10FF6");
+            shiningForce2CharacterCmb.Items.Add(karnaItem);
+
+            ShiningForce2CharacterItem randolfItem = new ShiningForce2CharacterItem("Randolf",
+                "11003",
+                "1100A",
+                "1100B",
+                "1100C",
+                "1100D",
+                "1100E",
+                "1100F",
+                "11010",
+                "11011",
+                "11028",
+                "11006",
+                "11004",
+                "11009",
+                "11008",
+                new string[] { "11019", "1101B", "1101D", "1101F" },
+                new string[] { "11020", "11021", "11022", "11023" },
+                "1102A",
+                "1102E");
+            shiningForce2CharacterCmb.Items.Add(randolfItem);
+
+            ShiningForce2CharacterItem tyrinItem = new ShiningForce2CharacterItem("Tyrin",
+                "1103B",
+                "11042",
+                "11043",
+                "11044",
+                "11045",
+                "11046",
+                "11047",
+                "11048",
+                "11049",
+                "11060",
+                "1103E",
+                "1103C",
+                "11041",
+                "11040",
+                new string[] { "11051", "11053", "11055", "11057" },
+                new string[] { "11058", "11059", "1105A", "1105B" },
+                "11062",
+                "11066");
+            shiningForce2CharacterCmb.Items.Add(tyrinItem);
+
+            ShiningForce2CharacterItem janetItem = new ShiningForce2CharacterItem("Janet",
+                "11073",
+                "1107A",
+                "1107B",
+                "1107C",
+                "1107D",
+                "1107E",
+                "1107F",
+                "11080",
+                "11081",
+                "11098",
+                "11076",
+                "11074",
+                "11079",
+                "11078",
+                new string[] { "11089", "1108B", "1108D", "1108F" },
+                new string[] { "11090", "11091", "11092", "11093" },
+                "1109A",
+                "1109E");
+            shiningForce2CharacterCmb.Items.Add(janetItem);
+
+            ShiningForce2CharacterItem higinsItem = new ShiningForce2CharacterItem("Higins",
+                "110AB",
+                "110B2",
+                "110B3",
+                "110B4",
+                "110B5",
+                "110B6",
+                "110B7",
+                "110B8",
+                "110B9",
+                "110D0",
+                "110AE",
+                "110AC",
+                "110B1",
+                "110B0",
+                new string[] { "110C1", "110C3", "110C5", "110C7" },
+                new string[] { "110C8", "110C9", "110CA", "110CB" },
+                "110D2",
+                "110D6");
+            shiningForce2CharacterCmb.Items.Add(higinsItem);
+
+            shiningForce2CharacterCmb.DisplayMember = "Name";
+        }
+
+        private void PopulateShiningForce2ItemsList()
+        {
+            shiningForce2ItemsList = new List<ShiningForce2Item>();
+
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Medical Herb", "00"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Seed", "01"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Drop", "02"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Antidote", "03"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Angel Wing", "04"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Fairy Powder", "05"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Water", "06"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Fairy Tear", "07"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Rain", "08"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Water", "09"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Protect Milk", "0A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Quick Chicken", "0B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Running Pemento", "0C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Chearful Bread", "0D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Bright Honey", "0E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Brave Apple", "0F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Shining Ball", "10"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Blizard", "11"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Holy Thunder", "12"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Ring", "13"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Protect Ring", "14"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Quick Ring", "15"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Running Ring", "16"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("White Ring", "17"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Black Ring", "18"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Ring", "19"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Leather Glove", "1A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Glove", "1B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Brass Knuckles", "1C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Knuckles", "1D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Misty Knuckles", "1E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Giant Knuckles", "1F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Knuckles", "20"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Axe", "21"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Hand Axe", "22"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Middle Axe", "23"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Axe", "24"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Battle Axe", "25"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Large Axe", "26"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Axe", "27"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Heat Axe", "28"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Atlas Axe", "29"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Ground Axe", "2A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Rune Axe", "2B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Axe", "2C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Arrow", "2D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Arrow", "2E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Steel Arrow", "2F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Robin Arrow", "30"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Assault Shell", "31"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Shot", "32"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Nazca Cannon", "33"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Buster Shot", "34"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Hyper Cannon", "35"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Grand Cannon", "36"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Shot", "37"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Stick", "38"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Sword", "39"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Middle Sword", "3A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Long Sword", "3B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Middle Sword", "3C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Achiles Sword", "3D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Broad Sword", "3E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Buster Sword", "3F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Sword", "40"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Critical Sword", "41"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Battle Sword", "42"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Force Sword", "43"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Counter Sword", "44"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Levanter", "45"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Dark Sword", "46"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Sword", "47"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Spear", "48"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Bronze Lance", "49"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Spear", "4A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Steel Lance", "4B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Power  Spear", "4C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Heavy Lance", "4D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Javelin", "4E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Chrome Lance", "4F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Valkyrie", "50"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Holy Lance", "51"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Mist Javelin", "52"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Halberd", "53"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Lance", "54"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Rod", "55"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Rod", "56"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Bronze Rod", "57"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Rod", "58"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Stick", "59"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Flail", "5A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Guardian Staff", "5B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Indra Staff", "5C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Mage Staff", "5D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Wish Staff", "5E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Rod", "5F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Supply Staff", "60"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Holy Staff", "61"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Freeze Staff", "62"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Godess Staff", "63"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Mystery Staff", "64"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Demon Rod", "65"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Ball", "66"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Knife", "67"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Dagger", "68"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Knife", "69"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Theive's Dagger", "6A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Kitana", "6B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Ninja Kitana", "6C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Gisarme", "6D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Taros Sword", "6E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Right of Hope", "6F"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Panel", "70"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Sky Orb", "71"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Cannon", "72"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Dry Stone", "73"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Dynamite", "74"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Arm of Golem", "75"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Pegasus Wing", "76"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Warrior's Pride", "77"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Silver Tank", "78"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Secret Book", "79"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Vigor Ball", "7A"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Mithryl", "7B"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Life Ring", "7C"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Cotton Balloon", "7D"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Chirrup Sandles", "7E"));
+            shiningForce2ItemsList.Add(new ShiningForce2Item("Blank Space", "7F"));
+        }
+
+        private void PopulateShiningForce2MagicList()
+        {
+            shiningForce2MagicList = new List<ShiningForce2MagicItem>();
+
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal1", "00"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura1", "01"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox1", "02"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost1", "03"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow1", "04"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack1", "05"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel1", "06"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle1", "07"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul1", "08"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep1", "09"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress1", "0A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze1", "0B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze1", "0C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt1", "0D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast1", "0E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Spoit1", "0F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Healin1", "10"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Flame1", "11"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Snow1", "12"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Demon1", "13"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Power1", "14"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Guard1", "15"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Speed1", "16"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Idaten1", "17"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Health1", "18"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("B. Rock1", "19"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Laser1", "1A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Katon1", "1B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Raijin1", "1C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dao1", "1D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Appolo1", "1E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Neptun1", "1F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Atlas1", "20"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Powder1", "21"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("G. Tear1", "22"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Hanny1", "23"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brave1", "24"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("F. Ball1", "25"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brezard1", "26"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Thundr", "27"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aqua1", "28"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi1", "29"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Shine1", "2A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Oddeye1", "2B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bowie1", "2C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sarah1", "2D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Chester1", "2E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Jaha1", "2F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kazin1", "30"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slade1", "31"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi1", "32"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Peter1", "33"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("May1", "34"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Gerhalt1", "35"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Luke1", "36"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rohde1", "37"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rick1", "38"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Elrick1", "39"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Eric1", "3A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Karna1", "3B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Randolf1", "3C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Tyrin1", "3D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Janet1", "3E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blank", "3F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal2", "40"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura2", "41"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox2", "42"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost2", "43"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow2", "44"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack2", "45"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel2", "46"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle2", "47"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul2", "48"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep2", "49"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress2", "4A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze2", "4B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze2", "4C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt2", "4D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast2", "4E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Spoit2", "4F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Healin2", "50"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Flame2", "51"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Snow2", "52"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Demon2", "53"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Power2", "54"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Guard2", "55"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Speed2", "56"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Idaten2", "57"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Health2", "58"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("B. Rock2", "59"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Laser2", "5A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Katon2", "5B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Raijin2", "5C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dao2", "5D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Appolo2", "5E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Neptun2", "5F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Atlas2", "60"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Powder2", "61"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("G. Tear2", "62"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Hanny2", "63"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brave2", "64"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("F. Ball2", "65"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brezard2", "66"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Thundr2", "67"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aqua2", "68"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi2", "69"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Shine2", "6A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Oddeye2", "6B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bowie2", "6C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sarah2", "6D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Chester2", "6E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Jaha2", "6F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kazin2", "70"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slade2", "71"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi2", "72"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Peter2", "73"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("May2", "74"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Gerhalt2", "75"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Luke2", "76"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rohde2", "77"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rick2", "78"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Elrick2", "79"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Eric2", "7A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Karna2", "7B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Randolf2", "7C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Tyrin2", "7D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Janet2", "7E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Higins2", "7F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal3", "80"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura3", "81"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox3", "82"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost3", "83"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow3", "84"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack3", "85"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel3", "86"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle3", "87"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul3", "88"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep3", "89"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress3", "8A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze3", "8B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze3", "8C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt3", "8D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast3", "8E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Spoit3", "8F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Healin3", "90"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Flame3", "91"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Snow3", "92"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Demon3", "93"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Power3", "94"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Guard3", "95"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Speed3", "96"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Idaten3", "97"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Health3", "98"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("B. Rock3", "99"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Laser3", "9A"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Katon3", "9B"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Raijin3", "9C"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dao3", "9D"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Appolo3", "9E"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Neptun3", "9F"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Atlas3", "A0"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Powder3", "A1"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("G. Tear3", "A2"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Hanny3", "A3"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brave3", "A4"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("F. Ball3", "A5"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brezard3", "A6"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Thundr3", "A7"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aqua3", "A8"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi3", "A9"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Shine3", "AA"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Oddeye3", "AB"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bowie3", "AC"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sarah3", "AD"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Chester3", "AE"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Jaha3", "AF"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kazin3", "B0"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slade3", "B1"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi3", "B2"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Peter3", "B3"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("May3", "B4"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Gerhalt3", "B5"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Luke3", "B6"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rohde3", "B7"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rick3", "B8"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Elrick3", "B9"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Eric3", "BA"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Karna3", "BB"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Randolf3", "BC"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Tyrin3", "BD"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Janet3", "BE"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Higins3", "BF"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal4", "C0"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura4", "C1"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox4", "C2"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost4", "C3"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow4", "C4"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack4", "C5"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel4", "C6"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle4", "C7"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul4", "C8"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep4", "C9"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress4", "CA"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze4", "CB"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze4", "CC"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt4", "CD"));
+            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast4", "CE"));
+        }
+
+        private void PopulateShiningForce2CharacterDetails(ShiningForce2CharacterItem characterItem)
+        {
+            ResetShiningForce2Controls(false);
+
+            string value = GetValueByOffset(characterItem.LevelOffset, 1);
+            long val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2LevelTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.AttackBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurAttackBaseTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.AttackEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurAttackEquipTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.DefenseBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurDefenseBaseTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.DefenseEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurDefenseEquipTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.AgilityBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurAgilityBaseTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.AgilityEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurAgilityEquipTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.MoveBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurMoveBaseTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.MoveEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurMoveEquipTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.ExperienceOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2CurExpTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.PresentHPOffset, 2);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2PresentHPTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.MaximumHPOffset, 2);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2MaxHPTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.PresentMPOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2PresentMPTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.MaximumMPOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2MaxMPTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.KillsOffset, 2);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2KillsTb.Text = val.ToString();
+            value = GetValueByOffset(characterItem.DefeatsOffset, 2);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForce2DefeatsTb.Text = val.ToString();
+
+            foreach (string itemLoc in characterItem.ItemsOffset)
+            {
+                value = GetValueByOffset(itemLoc, 1);
+                ShiningForce2Item item = GetShiningForce2Item(value);
+                if (item != null)
+                {
+                    shiningForce2ItemListBox.Items.Add(item);
+                }
+            }
+            shiningForce2ItemListBox.DisplayMember = "Name";
+
+            foreach (string magicLoc in characterItem.MagicOffset)
+            {
+                value = GetValueByOffset(magicLoc, 1);
+                ShiningForce2MagicItem magic = GetShiningForce2MagicItem(value);
+                if (magic != null)
+                {
+                    shiningForce2MagicListBox.Items.Add(magic);
+                }
+            }
+            shiningForce2MagicListBox.DisplayMember = "Name";
+        }
+
+        private void ResetShiningForceCDControls(bool resetCharacterList, bool clearGold = false)
+        {
+            if (resetCharacterList)
+            {
+                shiningForceCDSelectCharacterCmb.SelectedIndex = -1;
+                shiningForceCDSelectCharacterCmb.Items.Clear();
+            }
+
+            if (clearGold)
+            {
+                shiningForceCDCurrentGoldTb.Text = "";
+            }
+
+            shiningForceCDNewGoldTb.Text = "";
+            shiningForceCDCurrentLevelTb.Text = "";
+            shiningForceCDCurrentClassTb.Text = "";
+            shiningForceCDAttackBaseTb.Text = "";
+            shiningForceCDNewAttackBaseTb.Text = "";
+            shiningForceCDAttackEquipTb.Text = "";
+            shiningForceCDNewAttackEquipTb.Text = "";
+            shiningForceCDDefenseBaseTb.Text = "";
+            shiningForceCDNewDefenseBaseTb.Text = "";
+            shiningForceCDDefenseEquipTb.Text = "";
+            shiningForceCDNewDefenseBaseTb.Text = "";
+            shiningForceCDAgilityBaseTb.Text = "";
+            shiningForceCDNewAgilityBaseTb.Text = "";
+            shiningForceCDAgilityEquipTb.Text = "";
+            shiningForceCDNewAgilityEquipTb.Text = "";
+            shiningForceCDMoveBaseTb.Text = "";
+            shiningForceCDNewMoveBaseTb.Text = "";
+            shiningForceCDMoveEquipTb.Text = "";
+            shiningForceCDNewMoveEquipTb.Text = "";
+            shiningForceCDExperienceTb.Text = "";
+            shiningForceCDNewExperienceTb.Text = "";
+            shiningForceCDPresentHPTb.Text = "";
+            shiningForceCDNewPresentHPTb.Text = "";
+            shiningForceCDMaxHPTb.Text = "";
+            shiningForceCDNewMaxHPTb.Text = "";
+            shiningForceCDPresentMPTb.Text = "";
+            shiningForceCDNewPresentMPTb.Text = "";
+            shiningForceCDMaxMPTb.Text = "";
+            shiningForceCDNewMaxMPTb.Text = "";
+            shiningForceCDItemsListBox.Items.Clear();
+            shiningForceCDMagicListBox.Items.Clear();
+        }
+
+        private string GetShiningForceCDCurrentGold()
+        {
+            byte[] bytes = GetBytesByOffset(SHINING_FORCE_CD_GOLD_LOC, 4);
+
+            // Save states store gold as BIG-endian
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(bytes);
+            }
+
+            uint gold = BitConverter.ToUInt32(bytes, 0);
+            return gold.ToString();
+        }
+
+        private void PopulateShiningForceCDCurrentGold()
+        {
+            shiningForceCDCurrentGoldTb.Text = GetShiningForceCDCurrentGold();
+        }
+
+        private void PopulateShiningForceCDCharacterList()
+        {
+            shiningForceCDSelectCharacterCmb.Items.Clear();
+
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("HERO (player)", 0x0D522)); // player name string is stored elsewhere (e.g., "Aaron" or "Able", whatever is entered.
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("NATASHA", 0x0D55A));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("ERIC", 0x0D592));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("DAWN", 0x0D5CA));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("LUKE", 0x0D602));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("SHADE", 0x0D63A));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("GRAHAM", 0x0D672));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("CHESTER", 0x0D6AA));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("MAY", 0x0D6E2));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("SARAH", 0x0D71A));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("RANDOLF", 0x0D752));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("CLAUDE", 0x0D78A));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("ROHDE", 0x0D7C2));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("RUSH", 0x0D7FA));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("HIGINS", 0x0D832));
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("GYAN", 0x0D86A));
+
+            shiningForceCDSelectCharacterCmb.DisplayMember = "Name";
+        }
+
+        private void PopulateShiningForceCDCharacterList(bool loadAllSlotsEvenIfBlank = false)
+        {
+            shiningForceCDSelectCharacterCmb.Items.Clear();
+
+            const int slotCount = 20;
+
+            string heroName = GetShiningForceCDPlayerName();
+
+            // Slot 0 is HERO’s data block.
+            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar($"HERO ({heroName})", SfcdCharTableBase)); // 0x0D522
+
+            // Slot 1.. are other characters. Their names are stored in the PREVIOUS slot’s name field.
+            for (int slot = 1; slot < slotCount; slot++)
+            {
+                int offset = SfcdCharTableBase + (slot * SfcdCharSlotSize);
+
+                // Name for this slot is stored in (slot - 1)
+                string name = ReadSfcdSlotName(slot - 1);
+
+                if (!loadAllSlotsEvenIfBlank && string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                string displayName = string.IsNullOrWhiteSpace(name)
+                    ? $"— Empty Slot {slot} —"
+                    : name;
+
+                shiningForceCDSelectCharacterCmb.Items.Add(MakeChar(displayName, offset));
+            }
+
+            shiningForceCDSelectCharacterCmb.DisplayMember = "Name";
+        }
+
+        private string GetShiningForceCDPlayerName()
+        {
+            byte[] nameBytes = GetBytesByOffset(SFCD_PLAYER_NAME_OFFSET, SFCD_PLAYER_NAME_LENGTH);
+
+            int zeroIndex = Array.IndexOf(nameBytes, (byte)0);
+            int len = zeroIndex >= 0 ? zeroIndex : SFCD_PLAYER_NAME_LENGTH;
+
+            return System.Text.Encoding.ASCII.GetString(nameBytes, 0, len).Trim();
+        }
+
+        private string ReadSfcdSlotName(int slotIndex)
+        {
+            int slotOffset = SfcdCharTableBase + (slotIndex * SfcdCharSlotSize);
+            int nameOffset = slotOffset + SfcdNameOffset;
+
+            byte[] nameBytes = GetBytesByOffset(nameOffset, SfcdNameLength);
+
+            int zeroIndex = Array.IndexOf(nameBytes, (byte)0);
+            int len = zeroIndex >= 0 ? zeroIndex : SfcdNameLength;
+
+            return System.Text.Encoding.ASCII.GetString(nameBytes, 0, len).Trim();
+        }
+
+        private string GetSfcdItemName(byte rawId)
+        {
+            if (_shiningForceCDItemNamesByRawId == null)
+            {
+                return null;
+            }
+
+            if (rawId == 0xFF || rawId == 0x7F)
+            {
+                return null;
+            }
+
+            bool equipped = (rawId & 0x80) != 0;
+            byte baseId = (byte)(rawId & 0x7F);
+
+            if (_shiningForceCDItemNamesByRawId.TryGetValue(baseId, out var baseName))
+            {
+                return equipped ? baseName + " (Equipped)" : baseName;
+            }
+
+            // If some books truly use 0x80..0xFF as non-equipped raw IDs,
+            // you can keep a raw fallback:
+            if (_shiningForceCDItemNamesByRawId.TryGetValue(rawId, out var rawName))
+            {
+                return rawName;
+            }
+
+            return null;
+        }
+
+        private void PopulateShiningForceCDCharacterDetails(ShiningForceCDCharacterItem characterItem)
+        {
+            //LogError($"[SFCD] Selected: {characterItem.Name} ItemsOffset={string.Join(",", characterItem.ItemsOffset)}");
+            //byte[] dump = GetBytesByOffset("D536", 12);
+            //LogError("[SFCD] Dump @D536 (12) = " + BitConverter.ToString(dump));
+
+            ResetShiningForceCDControls(false);
+
+            // Always clear listboxes before repopulating
+            shiningForceCDItemsListBox.Items.Clear();
+            shiningForceCDMagicListBox.Items.Clear();
+
+            string classCode = GetClassCode(characterItem.BaseOffset);
+            shiningForceCDCurrentClassTb.Text = classCode;
+
+            string value;
+            long val;
+
+            value = GetValueByOffset(characterItem.LevelOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDCurrentLevelTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.AttackBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDAttackBaseTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.AttackEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDAttackEquipTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.DefenseBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDDefenseBaseTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.DefenseEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDDefenseEquipTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.AgilityBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDAgilityBaseTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.AgilityEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDAgilityEquipTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.MoveBaseOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDMoveBaseTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.MoveEquipOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDMoveEquipTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.ExperienceOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDExperienceTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.PresentHPOffset, 2);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDPresentHPTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.MaximumHPOffset, 2);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDMaxHPTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.PresentMPOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDPresentMPTb.Text = val.ToString();
+
+            value = GetValueByOffset(characterItem.MaximumMPOffset, 1);
+            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
+            shiningForceCDMaxMPTb.Text = val.ToString();
+
+            try
+            {
+                foreach (string itemIdOffset in characterItem.ItemsOffset)
+                {
+                    byte raw = GetBytesByOffset(itemIdOffset, 1)[0];
+
+                    // adjust empties if needed; DO NOT skip 0x00 if that is Medical Herb for you
+                    if (raw == 0xFF || raw == 0x7F)
+                    {
+                        continue;
+                    }
+
+                    string name = GetSfcdItemName(raw);
+
+                    if (name != null)
+                    {
+                        shiningForceCDItemsListBox.Items.Add(name);
+                    }
+                    else
+                    {
+                        shiningForceCDItemsListBox.Items.Add($"Unknown Item (0x{raw:X2})");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError(ex.Message + " Occurred while attempting to load SFCD items.");
+            }
+
+            // If listbox contains objects, DisplayMember works; if it contains strings too, it's harmless.
+            shiningForceCDItemsListBox.DisplayMember = "Name";
+
+            // ----------------------------
+            // MAGIC (still 1 byte each)
+            // ----------------------------
+            try
+            {
+                foreach (string magicLoc in characterItem.MagicOffset)
+                {
+                    value = GetValueByOffset(magicLoc, 1);
+
+                    // Debug logging
+                    LogError($"[SFCD] Magic @0x{magicLoc} = 0x{value}");
+
+                    if (value == "3F")
+                    {
+                        continue;
+                    }
+
+                    ShiningForceCDMagicItem magic = GetShiningForceCDMagicItem(value);
+                    if (magic != null)
+                    {
+                        shiningForceCDMagicListBox.Items.Add(magic);
+                    }
+                    else
+                    {
+                        shiningForceCDMagicListBox.Items.Add($"Unknown Magic (0x{value})");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError(ex.Message + " Occurred while attempting to load SFCD magic.");
+            }
+
+            shiningForceCDMagicListBox.DisplayMember = "Name";
+        }
+
+        private void PopulateShiningForceCDItemsList(ShiningForceCDBook currentBook)
+        {
+            _shiningForceCDItemNamesByRawId = new Dictionary<byte, string>();
+
+            void Add(string name, string hexRawId)
+            {
+                byte rawId = byte.Parse(hexRawId, System.Globalization.NumberStyles.HexNumber);
+
+                if (_shiningForceCDItemNamesByRawId.TryGetValue(rawId, out var existing) && existing != name)
+                {
+                    // Keep both so we never silently lie.
+                    //_shiningForceCDItemNamesByRawId[rawId] = existing + " / " + name;
+                    LogError($"[SFCD] Item ID collision 0x{rawId:X2}: '{existing}' vs '{name}'");
+                    return;
+                }
+
+                _shiningForceCDItemNamesByRawId[rawId] = name;
+            }
+
+            void AddWithBase(string name, string hexRawId)
+            {
+                byte rawId = byte.Parse(hexRawId, System.Globalization.NumberStyles.HexNumber);
+                Add(name, hexRawId);
+
+                // If it looks like an equipped variant, also map the base id
+                if ((rawId & 0x80) != 0)
+                {
+                    byte baseId = (byte)(rawId & 0x7F);
+                    _shiningForceCDItemNamesByRawId[baseId] = name;
+                }
+            }
+
+            // ---------
+            // Common (raw IDs)
+            // ---------
+            Add("Medical Herb", "00");
+            Add("Healing Seed", "01");
+            Add("Antidote", "02");
+            Add("Healing Rain", "03");
+            Add("Angel Wing", "04");
+            Add("Powerful Wine", "05");
+            Add("Protect Milk", "06");
+            Add("Quick Chicken", "07");
+            Add("Running Pimento", "08");
+            Add("Cheerful Bread", "09");
+
+            // Rings (raw IDs)
+            AddWithBase("Power Ring", "0A");
+            AddWithBase("Protect Ring", "0B");
+            AddWithBase("Quick Ring", "0C");
+            AddWithBase("Running Ring", "0D");
+            AddWithBase("White Ring", "0E");
+            AddWithBase("Black Ring", "0F");
+            AddWithBase("Evil Ring", "90");
+
+            // Empty markers (raw IDs)
+            Add("Empty", "7F");
+            AddWithBase("Empty (Equipped?)", "FF");
+
+            // ---------
+            // Book 1/2 raw IDs (from your original list)
+            // NOTE: these appear to already be raw IDs, not base IDs.
+            // ---------
+            if (currentBook == ShiningForceCDBook.Book1TowardsTheRootOfEvil || currentBook == ShiningForceCDBook.Book2TheEvilGodAwakes)
+            {
+                AddWithBase("Leather Glove", "91");
+                AddWithBase("Power Glove", "92");
+                AddWithBase("Battle Glove", "93");
+                AddWithBase("Iron Claw", "94");
+
+                AddWithBase("Short Sword", "9D");
+                AddWithBase("Broad Sword", "A1");
+                AddWithBase("Critical Sword", "A2");
+                AddWithBase("Wooden Stick", "A3");
+                AddWithBase("Robin's Arrow", "A4");
+                AddWithBase("Dark Sword", "A5");
+                AddWithBase("Wood Sword", "26");
+                AddWithBase("Sword of Hajya", "A7");
+                AddWithBase("Bronze Lance", "A8");
+                AddWithBase("Steel Lance", "A9");
+                AddWithBase("Chrome Lance", "AA");
+                AddWithBase("Evil Lance", "AB");
+                AddWithBase("Halberd", "AC");
+                AddWithBase("Spear", "AD");
+                AddWithBase("Power Spear", "AE");
+                AddWithBase("Valkyrie", "AF");
+                AddWithBase("Hand Axe", "B0");
+                AddWithBase("Middle Axe", "B1");
+                AddWithBase("Battle Axe", "B2");
+                AddWithBase("Heat Axe", "B3");
+                AddWithBase("Axe of Atlas", "B4");
+                AddWithBase("Wooden Staff", "B5");
+                AddWithBase("Protect Staff", "B6");
+                AddWithBase("Holy Staff", "B7");
+                AddWithBase("Power Stick", "B8");
+                AddWithBase("Demon Rod", "B9");
+                AddWithBase("Flail", "BA");
+                AddWithBase("Wooden Arrow", "BB");
+                AddWithBase("Steel Arrow", "BC");
+                AddWithBase("Assault Shell", "BD");
+                AddWithBase("Buster Shot", "BE");
+                AddWithBase("Short Axe", "97");
+                AddWithBase("Bronze Rod", "98"); 
+                AddWithBase("Iron Rod", "99"); 
+                AddWithBase("Iron Arrow", "9A"); 
+                AddWithBase("Club", "15");
+                AddWithBase("Club", "95");
+
+                // Proven in your Book1 save:
+                AddWithBase("Steel Sword", "A0");
+                AddWithBase("Steel Sword", "20"); // keep if you ever see raw 0x20
+            }
+            else if (currentBook == ShiningForceCDBook.Book3ANewChallenge || currentBook == ShiningForceCDBook.Book4TheLastBattle)
+            {
+                // ---------
+                // Book 3/4 raw IDs (from your list)
+                // These are ALSO raw IDs (0x91..0xAF etc), so they WILL collide.
+                // That’s OK — collisions get logged and preserved as “A / B”.
+                // ---------
+                AddWithBase("Misty Knuckle", "91");
+                AddWithBase("Giant Knuckle", "92");
+                AddWithBase("Large Axe", "93");
+                AddWithBase("Earth Axe", "94");
+                AddWithBase("Great Rod", "95");
+                AddWithBase("Mystery Staff", "96");
+                AddWithBase("Hyper Cannon", "97");
+                AddWithBase("Shut Cannon", "98");
+                AddWithBase("Buster Sword", "99");
+                AddWithBase("Counter Sword", "9A");
+                AddWithBase("Light Sword", "26");
+                AddWithBase("Javelin", "9B");
+                AddWithBase("Chrome Lance", "9C");
+                AddWithBase("Samurai Sword", "9D");
+                AddWithBase("Higins", "9E");
+                AddWithBase("Murasame", "9F");
+                AddWithBase("Murasana", "A0");
+                AddWithBase("Iris Blade", "A1");
+                AddWithBase("Kamikaze Axe", "A2");
+                AddWithBase("Kizer Knuckle", "A3");
+                AddWithBase("Venom Javelin", "A4");
+                AddWithBase("Work Glove", "A5");
+                AddWithBase("Pegaus Wing", "A7");
+                AddWithBase("Mithril", "A8");
+                AddWithBase("Steel Sword", "A9");
+                AddWithBase("Broad Sword", "AA");
+                AddWithBase("Battle Axe", "AB");
+                AddWithBase("Axe of Atlas", "AC");
+                AddWithBase("Protect Staff", "AD");
+                AddWithBase("Chirrup Hummer", "AE");
+                AddWithBase("Teddy's Coat", "AF");
+            }
+        }
+
+        private void PopulateShiningForceCDMagicList()
+        {
+            shiningForceCDMagicList = new List<ShiningForceCDMagicItem>();
+
+            // A very typical SF-style encoding: base spell id + (levelGroup * 0x40)
+            // Where levelGroup: 0 = L1, 1 = L2, 2 = L3, 3 = L4
+            // And 0x3F is often used for "Empty".
+            shiningForceCDMagicList.AddRange(new[]
+            {
+                // ----- Level 1 -----
+                new ShiningForceCDMagicItem("Heal 1",   "00"),
+                new ShiningForceCDMagicItem("Aura 1",   "01"),
+                new ShiningForceCDMagicItem("Detox 1",  "02"),
+                new ShiningForceCDMagicItem("Boost 1",  "03"),
+                new ShiningForceCDMagicItem("Slow 1",   "04"),
+                new ShiningForceCDMagicItem("Attack 1", "05"),
+                new ShiningForceCDMagicItem("Dispel 1", "06"),
+                new ShiningForceCDMagicItem("Muddle 1", "07"),
+                new ShiningForceCDMagicItem("Desoul 1", "08"),
+                new ShiningForceCDMagicItem("Sleep 1",  "09"),
+                new ShiningForceCDMagicItem("Blaze 1",  "0B"),
+                new ShiningForceCDMagicItem("Freeze 1", "0C"),
+                new ShiningForceCDMagicItem("Bolt 1",   "0D"),
+                new ShiningForceCDMagicItem("Hell 1",   "0E"),
+                new ShiningForceCDMagicItem("Egress 1", "0A"),
+                new ShiningForceCDMagicItem("Empty",    "3F"),
+
+                // ----- Level 2 -----
+                new ShiningForceCDMagicItem("Heal 2",   "40"),
+                new ShiningForceCDMagicItem("Aura 2",   "41"),
+                new ShiningForceCDMagicItem("Detox 2",  "42"),
+                new ShiningForceCDMagicItem("Boost 2",  "43"),
+                new ShiningForceCDMagicItem("Slow 2",   "44"),
+                new ShiningForceCDMagicItem("Attack 2", "45"),
+                new ShiningForceCDMagicItem("Dispel 2", "46"),
+                new ShiningForceCDMagicItem("Muddle 2", "47"),
+                new ShiningForceCDMagicItem("Desoul 2", "48"),
+                new ShiningForceCDMagicItem("Sleep 2",  "49"),
+                new ShiningForceCDMagicItem("Blaze 2",  "4B"),
+                new ShiningForceCDMagicItem("Freeze 2", "4C"),
+                new ShiningForceCDMagicItem("Bolt 2",   "4D"),
+                new ShiningForceCDMagicItem("Hell 2",   "4E"),
+                new ShiningForceCDMagicItem("Egress 2", "4A"),
+
+                // ----- Level 3 -----
+                new ShiningForceCDMagicItem("Heal 3",   "80"),
+                new ShiningForceCDMagicItem("Aura 3",   "81"),
+                new ShiningForceCDMagicItem("Detox 3",  "82"),
+                new ShiningForceCDMagicItem("Boost 3",  "83"),
+                new ShiningForceCDMagicItem("Slow 3",   "84"),
+                new ShiningForceCDMagicItem("Attack 3", "85"),
+                new ShiningForceCDMagicItem("Dispel 3", "86"),
+                new ShiningForceCDMagicItem("Muddle 3", "87"),
+                new ShiningForceCDMagicItem("Desoul 3", "88"),
+                new ShiningForceCDMagicItem("Sleep 3",  "89"),
+                new ShiningForceCDMagicItem("Blaze 3",  "8B"),
+                new ShiningForceCDMagicItem("Freeze 3", "8C"),
+                new ShiningForceCDMagicItem("Bolt 3",   "8D"),
+                new ShiningForceCDMagicItem("Hell 3",   "8E"),
+                new ShiningForceCDMagicItem("Egress 3", "8A"),
+
+                // ----- Level 4 -----
+                new ShiningForceCDMagicItem("Heal 4",   "C0"),
+                new ShiningForceCDMagicItem("Aura 4",   "C1"),
+                new ShiningForceCDMagicItem("Detox 4",  "C2"),
+                new ShiningForceCDMagicItem("Boost 4",  "C3"),
+                new ShiningForceCDMagicItem("Slow 4",   "C4"),
+                new ShiningForceCDMagicItem("Attack 4", "C5"),
+                new ShiningForceCDMagicItem("Dispel 4", "C6"),
+                new ShiningForceCDMagicItem("Muddle 4", "C7"),
+                new ShiningForceCDMagicItem("Desoul 4", "C8"),
+                new ShiningForceCDMagicItem("Sleep 4",  "C9"),
+                new ShiningForceCDMagicItem("Blaze 4",  "CB"),
+                new ShiningForceCDMagicItem("Freeze 4", "CC"),
+                new ShiningForceCDMagicItem("Bolt 4",   "CD"),
+                new ShiningForceCDMagicItem("Hell 4",   "CE"),
+                new ShiningForceCDMagicItem("Egress 4", "CA"),
+            });
+        }
+
+
         private void LogError(string errMsg)
         {
             // Create a write and open the file
@@ -1551,6 +3153,12 @@ namespace ShiningEditor
             }
         }
 
+        private void ResetSfcdCaches()
+        {
+            _sfcdClassTableLoadedFromPath = null;
+            _sfcdClassTable = null;
+        }
+
         private string GetValueByOffset(string offset, int bytesToRead)
         {
             string value = string.Empty;
@@ -1584,6 +3192,37 @@ namespace ShiningEditor
 
             return value;
         }
+
+        private byte[] GetBytesByOffset(string offset, int bytesToRead)
+        {
+            using var reader = new BinaryReader(
+                new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read)
+            );
+
+            reader.BaseStream.Position =
+                long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
+
+            return reader.ReadBytes(bytesToRead);
+        }
+
+        private byte[] GetBytesByOffset(int offset, int length)
+        {
+            using var fs = new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+            fs.Position = offset;
+
+            byte[] buffer = new byte[length];
+            int read = fs.Read(buffer, 0, length);
+
+
+            if (read != length)
+            {
+                Array.Resize(ref buffer, read);
+            }
+
+            return buffer;
+        }
+
 
         private bool SetValueByOffset(string value, string offset)
         {
@@ -1706,7 +3345,7 @@ namespace ShiningEditor
             return success;
         }
 
-        private bool SetValueByOffset(short value, string offset, int numBytes = 0)
+        private bool SetValueByOffset(short value, string offset, int index = 0, int numBytes = 0)
         {
             bool success = false;
             BinaryWriter writer = null;
@@ -1716,13 +3355,13 @@ namespace ShiningEditor
                 writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
                 writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
                 byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                if (numBytes == 0)
+                if (numBytes == 0 && index == 0)
                 {
                     writer.Write(bytes);
                 }
                 else
                 {
-                    writer.Write(bytes, 1, numBytes);
+                    writer.Write(bytes, index, numBytes);
                 }
 
                 success = true;
@@ -1751,7 +3390,7 @@ namespace ShiningEditor
             return success;
         }
 
-        private bool SetValueByOffset(ushort value, string offset)
+        private bool SetValueByOffset(ushort value, string offset, int index = 0, int numBytes = 0)
         {
             bool success = false;
             BinaryWriter writer = null;
@@ -1761,7 +3400,15 @@ namespace ShiningEditor
                 writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
                 writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
                 byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                writer.Write(bytes);
+
+                if (numBytes == 0)
+                {
+                    writer.Write(bytes);
+                }
+                else
+                {
+                    writer.Write(bytes, index, numBytes);
+                }
 
                 success = true;
             }
@@ -1787,6 +3434,64 @@ namespace ShiningEditor
             }
 
             return success;
+        }
+
+        private bool SetUInt32BigEndianByOffset(uint value, string offset)
+        {
+            try
+            {
+                using (var stream = new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Write, FileShare.Read))
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
+
+                    // Convert to bytes
+                    byte[] bytes = BitConverter.GetBytes(value);
+
+                    // Save is big-endian, so reverse on little-endian machines (Windows)
+                    if (BitConverter.IsLittleEndian)
+                    {
+                        Array.Reverse(bytes);
+                    }
+
+                    writer.Write(bytes); // 4 bytes
+                }
+
+                return true;
+            }
+            catch (IOException ioe)
+            {
+                LogError(ioe.Message + " Occurred while attempting to write gold to the save state file.");
+                return false;
+            }
+            catch (ArgumentException aue)
+            {
+                LogError(aue.Message + " Occurred while attempting to write gold to the save state file.");
+                return false;
+            }
+            catch (Exception e)
+            {
+                LogError(e.Message + " Occurred while attempting to write gold to the save state file.");
+                return false;
+            }
+        }
+
+        private bool SetByteByOffset(byte value, string offset)
+        {
+            try
+            {
+                using (var writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Write, FileShare.Read)))
+                {
+                    writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
+                    writer.Write(value);
+                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                LogError(e.Message + " Occurred while attempting to write a byte to the save state file.");
+                return false;
+            }
         }
 
         private bool SetValueByOffset(byte value, string offset)
@@ -1978,127 +3683,758 @@ namespace ShiningEditor
                 }
             }
 
-            if (shiningForceNewAttackTb.Text != string.Empty)
+            if (charItem != null)
             {
-                short attack = 0;
-                if (short.TryParse(shiningForceNewAttackTb.Text, out attack))
+                if (shiningForceNewAttackTb.Text != string.Empty)
                 {
-                    SetValueByOffset(attack, charItem.AttackLoc, 1);
+                    short attack = 0;
+                    if (short.TryParse(shiningForceNewAttackTb.Text, out attack))
+                    {
+                        SetValueByOffset(attack, charItem.AttackLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new attack value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new attack value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewDefenseTb.Text != string.Empty)
-            {
-                short defense = 0;
-                if (short.TryParse(shiningForceNewDefenseTb.Text, out defense))
+                if (shiningForceNewDefenseTb.Text != string.Empty)
                 {
-                    SetValueByOffset(defense, charItem.DefenseLoc, 1);
+                    short defense = 0;
+                    if (short.TryParse(shiningForceNewDefenseTb.Text, out defense))
+                    {
+                        SetValueByOffset(defense, charItem.DefenseLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new defense value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new defense value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewAgilityTb.Text != string.Empty)
-            {
-                short agility = 0;
-                if (short.TryParse(shiningForceNewAgilityTb.Text, out agility))
+                if (shiningForceNewAgilityTb.Text != string.Empty)
                 {
-                    SetValueByOffset(agility, charItem.AgilityLoc, 1);
+                    short agility = 0;
+                    if (short.TryParse(shiningForceNewAgilityTb.Text, out agility))
+                    {
+                        SetValueByOffset(agility, charItem.AgilityLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new agility value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new agility value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewMoveTb.Text != string.Empty)
-            {
-                short move = 0;
-                if (short.TryParse(shiningForceNewMoveTb.Text, out move))
+                if (shiningForceNewMoveTb.Text != string.Empty)
                 {
-                    SetValueByOffset(move, charItem.MoveLoc, 1);
+                    short move = 0;
+                    if (short.TryParse(shiningForceNewMoveTb.Text, out move))
+                    {
+                        SetValueByOffset(move, charItem.MoveLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new move value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new move value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewExpTb.Text != string.Empty)
-            {
-                short exp = 0;
-                if (short.TryParse(shiningForceNewExpTb.Text, out exp))
+                if (shiningForceNewExpTb.Text != string.Empty)
                 {
-                    SetValueByOffset(exp, charItem.ExperienceLoc, 1);
+                    short exp = 0;
+                    if (short.TryParse(shiningForceNewExpTb.Text, out exp))
+                    {
+                        SetValueByOffset(exp, charItem.ExperienceLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewCurHPTb.Text != string.Empty)
-            {
-                short hp = 0;
-                if (short.TryParse(shiningForceNewCurHPTb.Text, out hp))
+                if (shiningForceNewCurHPTb.Text != string.Empty)
                 {
-                    SetValueByOffset(hp, charItem.CurrentHPLoc, 1);
+                    short hp = 0;
+                    if (short.TryParse(shiningForceNewCurHPTb.Text, out hp))
+                    {
+                        SetValueByOffset(hp, charItem.CurrentHPLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new current HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new current HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewMaxHPTb.Text != string.Empty)
-            {
-                short maxHP = 0;
-                if (short.TryParse(shiningForceNewMaxHPTb.Text, out maxHP))
+                if (shiningForceNewMaxHPTb.Text != string.Empty)
                 {
-                    SetValueByOffset(maxHP, charItem.MaxHPLoc, 1);
+                    short maxHP = 0;
+                    if (short.TryParse(shiningForceNewMaxHPTb.Text, out maxHP))
+                    {
+                        SetValueByOffset(maxHP, charItem.MaxHPLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewCurMPTb.Text != string.Empty)
-            {
-                short mp = 0;
-                if (short.TryParse(shiningForceNewCurMPTb.Text, out mp))
+                if (shiningForceNewCurMPTb.Text != string.Empty)
                 {
-                    SetValueByOffset(mp, charItem.CurrentMPLoc, 1);
+                    short mp = 0;
+                    if (short.TryParse(shiningForceNewCurMPTb.Text, out mp))
+                    {
+                        SetValueByOffset(mp, charItem.CurrentMPLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new curent MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new curent MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
 
-            if (shiningForceNewMaxMPTb.Text != string.Empty)
-            {
-                short maxMP = 0;
-                if (short.TryParse(shiningForceNewMaxMPTb.Text, out maxMP))
+                if (shiningForceNewMaxMPTb.Text != string.Empty)
                 {
-                    SetValueByOffset(maxMP, charItem.MaxMPLoc, 1);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    short maxMP = 0;
+                    if (short.TryParse(shiningForceNewMaxMPTb.Text, out maxMP))
+                    {
+                        SetValueByOffset(maxMP, charItem.MaxMPLoc, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
             ResetShiningForceControls(false);
             PopulateShiningForceCurrentGold();
-            PopulateShiningForceCharacterDetails(charItem);
+
+            if (charItem != null)
+            {
+                PopulateShiningForceCharacterDetails(charItem);
+            }
+        }
+
+        private ShiningForce2Item GetShiningForce2Item(string id)
+        {
+            return shiningForce2ItemsList.FirstOrDefault(i => i.ID.ToUpper() == id.ToUpper());
+        }
+
+        private ShiningForce2MagicItem GetShiningForce2MagicItem(string id)
+        {
+            return shiningForce2MagicList.FirstOrDefault(m => m.ID.ToUpper() == id.ToUpper());
+        }
+
+        private void UpdateShiningForce2SaveState()
+        {
+            ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
+            if (shiningForce2NewGoldTb.Text != string.Empty)
+            {
+                ushort gold = 0;
+                if (ushort.TryParse(shiningForce2NewGoldTb.Text, out gold))
+                {
+                    SetValueByOffset(gold, SHINING_FORCE_2_GOLD_LOC, 0, 2);
+                }
+                else
+                {
+                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+
+            if (charItem != null)
+            {
+                if (shiningForce2NewAttackBaseTb.Text != string.Empty)
+                {
+                    short attack = 0;
+                    if (short.TryParse(shiningForce2NewAttackBaseTb.Text, out attack))
+                    {
+                        SetValueByOffset(attack, charItem.AttackBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new attack base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewAttackEquipTb.Text != string.Empty)
+                {
+                    short attack = 0;
+                    if (short.TryParse(shiningForce2NewAttackEquipTb.Text, out attack))
+                    {
+                        SetValueByOffset(attack, charItem.AttackEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new attack equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewDefenseBaseTb.Text != string.Empty)
+                {
+                    short defense = 0;
+                    if (short.TryParse(shiningForce2NewDefenseBaseTb.Text, out defense))
+                    {
+                        SetValueByOffset(defense, charItem.DefenseBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new defense base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewDefenseEquipTb.Text != string.Empty)
+                {
+                    short defense = 0;
+                    if (short.TryParse(shiningForce2NewDefenseEquipTb.Text, out defense))
+                    {
+                        SetValueByOffset(defense, charItem.DefenseEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new defense equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewAgilityBaseTb.Text != string.Empty)
+                {
+                    short agility = 0;
+                    if (short.TryParse(shiningForce2NewAgilityBaseTb.Text, out agility))
+                    {
+                        SetValueByOffset(agility, charItem.AgilityBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new agility base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewAgilityEquipTb.Text != string.Empty)
+                {
+                    short agility = 0;
+                    if (short.TryParse(shiningForce2NewAgilityEquipTb.Text, out agility))
+                    {
+                        SetValueByOffset(agility, charItem.AgilityEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new agility equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewMoveBaseTb.Text != string.Empty)
+                {
+                    short move = 0;
+                    if (short.TryParse(shiningForce2NewMoveBaseTb.Text, out move))
+                    {
+                        SetValueByOffset(move, charItem.MoveBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new move base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewMoveEquipTb.Text != string.Empty)
+                {
+                    short move = 0;
+                    if (short.TryParse(shiningForce2NewMoveEquipTb.Text, out move))
+                    {
+                        SetValueByOffset(move, charItem.MoveEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new move equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewExpTb.Text != string.Empty)
+                {
+                    short exp = 0;
+                    if (short.TryParse(shiningForce2NewExpTb.Text, out exp))
+                    {
+                        SetValueByOffset(exp, charItem.ExperienceOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewPresentHPTb.Text != string.Empty)
+                {
+                    short hp = 0;
+                    if (short.TryParse(shiningForce2NewPresentHPTb.Text, out hp))
+                    {
+                        SetValueByOffset(hp, charItem.PresentHPOffset, 0, 0);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new present HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewMaxHPTb.Text != string.Empty)
+                {
+                    short hp = 0;
+                    if (short.TryParse(shiningForce2NewMaxHPTb.Text, out hp))
+                    {
+                        SetValueByOffset(hp, charItem.MaximumHPOffset, 0, 0);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewPresentMPTb.Text != string.Empty)
+                {
+                    short mp = 0;
+                    if (short.TryParse(shiningForce2NewPresentMPTb.Text, out mp))
+                    {
+                        SetValueByOffset(mp, charItem.PresentMPOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new present MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForce2NewMaxMPTb.Text != string.Empty)
+                {
+                    short mp = 0;
+                    if (short.TryParse(shiningForce2NewMaxMPTb.Text, out mp))
+                    {
+                        SetValueByOffset(mp, charItem.MaximumMPOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new pmax MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+
+            MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ResetShiningForce2Controls(false);
+            PopulateShiningForce2CurrentGold();
+
+            if (charItem != null)
+            {
+                PopulateShiningForce2CharacterDetails(charItem);
+            }
+        }
+
+        // Returns 1..4, or 0 if unknown
+        private int GetShiningForceCDBookNumber()
+        {
+            byte raw = GetBytesByOffset(SHINING_FORCE_CD_BOOK_INDEX_OFFSET, 1)[0];
+            LogError($"[SFCD] Book byte @0x{SHINING_FORCE_CD_BOOK_INDEX_OFFSET} = 0x{raw:X2} ({raw})");
+
+            return raw is >= 1 and <= 4 ? raw : 0;
+        }
+
+        private void DetermineShiningForceCDCurrentBook()
+        {
+            int bookNum = GetShiningForceCDBookNumber();
+
+            _shiningForceCDBook = bookNum switch
+            {
+                1 => ShiningForceCDBook.Book1TowardsTheRootOfEvil,
+                2 => ShiningForceCDBook.Book2TheEvilGodAwakes,
+                3 => ShiningForceCDBook.Book3ANewChallenge,
+                4 => ShiningForceCDBook.Book4TheLastBattle,
+                _ => ShiningForceCDBook.UnknownBook
+            };
+        }
+
+        private static string Hex(int value) => value.ToString("X");
+
+        private ShiningForceCDCharacterItem MakeChar(string name, int baseOffset)
+        {
+            return new ShiningForceCDCharacterItem(
+                name,
+                baseOffset,
+                Hex(baseOffset + 0x00), // FaceClassOffset
+                Hex(baseOffset + 0x01), // LevelOffset
+                Hex(baseOffset + 0x08), // AttackBaseOffset
+                Hex(baseOffset + 0x09), // AttackEquipOffset
+                Hex(baseOffset + 0x0A), // DefenseBaseOffset
+                Hex(baseOffset + 0x0B), // DefenseEquipOffset
+                Hex(baseOffset + 0x0C), // AgilityBaseOffset
+                Hex(baseOffset + 0x0D), // AgilityEquipOffset
+                Hex(baseOffset + 0x0E), // MoveBaseOffset
+                Hex(baseOffset + 0x0F), // MoveEquipOffset
+
+                Hex(baseOffset + 0x26), // ExperienceOffset (1 byte)
+
+                Hex(baseOffset + 0x02), // PresentHPOffset (2 bytes)
+                Hex(baseOffset + 0x04), // MaximumHPOffset (2 bytes)
+                Hex(baseOffset + 0x06), // PresentMPOffset (1 byte)
+                Hex(baseOffset + 0x07), // MaximumMPOffset (1 byte)
+
+                // ITEMS: skip the first pair at base+0x14..0x15
+                // real 4 inventory slots are the next 4 ID bytes:
+                new[]
+                {
+                    Hex(baseOffset + 0x17), // slot 1 ID
+                    Hex(baseOffset + 0x19), // slot 2 ID
+                    Hex(baseOffset + 0x1B), // slot 3 ID
+                    Hex(baseOffset + 0x1D), // slot 4 ID
+                },
+
+                // Magic: 4 bytes starting at base+0x1E (your logs confirm this)
+                new[]
+                {
+                    Hex(baseOffset + 0x1E),
+                    Hex(baseOffset + 0x1F),
+                    Hex(baseOffset + 0x20),
+                    Hex(baseOffset + 0x21),
+                }
+            );
+        }
+
+        private ShiningForceCDMagicItem GetShiningForceCDMagicItem(string id)
+        {
+            return shiningForceCDMagicList.FirstOrDefault(i => i.ID.ToUpper() == id.ToUpper());
+        }
+
+        /// <summary>
+        /// Returns SDMN, WARR, PLDN, WIZ, VICR, etc for the character record at <paramref name="characterBaseOffset"/>.
+        /// </summary>
+        private string GetClassCode(int characterBaseOffset)
+        {
+            EnsureSfcdClassTableLoaded();
+
+            byte classId = GetBytesByOffset(characterBaseOffset + SfcdClassIdOffset, 1)[0];
+
+            if (_sfcdClassTable == null || _sfcdClassTable.Count == 0)
+            {
+                return "????";
+            }
+
+            if (classId >= _sfcdClassTable.Count)
+            {
+                return $"ID:{classId}";
+            }
+
+            return _sfcdClassTable[classId];
+        }
+
+
+        private void EnsureSfcdClassTableLoaded()
+        {
+            string path = saveStateFileTb.Text;
+
+            // Skip only if we already have a valid table for THIS file
+            if (_sfcdClassTable != null
+                && _sfcdClassTable.Count > 0
+                && _sfcdClassTableLoadedFromPath != null
+                && string.Equals(_sfcdClassTableLoadedFromPath, path, StringComparison.OrdinalIgnoreCase)
+                && _sfcdClassTable.Contains("SDMN"))
+            {
+                return;
+            }
+
+            _sfcdClassTableLoadedFromPath = path;
+
+            // Read file once (it's ~1.1MB; totally fine)
+            byte[] all = File.ReadAllBytes(path);
+
+            // Find the signature: 04 SDMN 04 HERO 04 KNTE 04 PLDN
+            int start = FindClassTableOffsetBySignature(all);
+            if (start < 0)
+            {
+                _sfcdClassTable = new List<string>(); // stays empty => "????"
+                return;
+            }
+
+            _sfcdClassTable = ReadLenPrefixedStringTableFromBytes(all, start, maxItems: 200);
+
+            LogError($"[SFCD] Class table loaded: {_sfcdClassTable.Count} entries. First={_sfcdClassTable[0]}");
+        }
+
+        private static List<string> ReadLenPrefixedStringTableFromBytes(byte[] all, int startOffset, int maxItems)
+        {
+            var list = new List<string>(maxItems);
+            int offset = startOffset;
+
+            for (int i = 0; i < maxItems; i++)
+            {
+                if (offset < 0 || offset >= all.Length)
+                    break;
+
+                byte len = all[offset];
+
+                // class codes are short; table also includes other strings, but still usually small
+                if (len == 0 || len > 20)
+                    break;
+
+                if (offset + 1 + len > all.Length)
+                    break;
+
+                string s = Encoding.ASCII.GetString(all, offset + 1, len).TrimEnd('\0', ' ');
+
+                if (string.IsNullOrWhiteSpace(s))
+                    break;
+
+                list.Add(s);
+                offset += 1 + len;
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// Scans the file for: 04 SDMN 04 HERO 04 KNTE 04 PLDN
+        /// and returns the offset of the first length byte (0x04) if found.
+        /// </summary>
+        private static int FindClassTableOffsetBySignature(byte[] all)
+        {
+            byte[] sig =
+            {
+                0x04, (byte)'S', (byte)'D', (byte)'M', (byte)'N',
+                0x04, (byte)'H', (byte)'E', (byte)'R', (byte)'O',
+                0x04, (byte)'K', (byte)'N', (byte)'T', (byte)'E',
+                0x04, (byte)'P', (byte)'L', (byte)'D', (byte)'N',
+            };
+
+            for (int i = 0; i <= all.Length - sig.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < sig.Length; j++)
+                {
+                    if (all[i + j] != sig[j]) { match = false; break; }
+                }
+
+                if (match)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private void UpdateShiningForceCDSaveState()
+        {
+            ShiningForceCDCharacterItem charItem = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
+
+            if (!string.IsNullOrEmpty(shiningForceCDNewGoldTb.Text))
+            {
+                if (uint.TryParse(shiningForceCDNewGoldTb.Text, out var newGold))
+                {
+                    SetUInt32BigEndianByOffset(newGold, SHINING_FORCE_CD_GOLD_LOC);
+                }
+                else
+                {
+                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+
+            if (charItem != null)
+            {
+                if (shiningForceCDNewAttackBaseTb.Text != string.Empty)
+                {
+                    short attack = 0;
+                    if (short.TryParse(shiningForceCDNewAttackBaseTb.Text, out attack))
+                    {
+                        SetValueByOffset(attack, charItem.AttackBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new attack base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewAttackEquipTb.Text != string.Empty)
+                {
+                    short attack = 0;
+                    if (short.TryParse(shiningForceCDNewAttackEquipTb.Text, out attack))
+                    {
+                        SetValueByOffset(attack, charItem.AttackEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new attack equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewDefenseBaseTb.Text != string.Empty)
+                {
+                    short defense = 0;
+                    if (short.TryParse(shiningForceCDNewDefenseBaseTb.Text, out defense))
+                    {
+                        SetValueByOffset(defense, charItem.DefenseBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new defense base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewDefenseEquipTb.Text != string.Empty)
+                {
+                    short defense = 0;
+                    if (short.TryParse(shiningForceCDNewDefenseEquipTb.Text, out defense))
+                    {
+                        SetValueByOffset(defense, charItem.DefenseEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new defense equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewAgilityBaseTb.Text != string.Empty)
+                {
+                    short agility = 0;
+                    if (short.TryParse(shiningForceCDNewAgilityBaseTb.Text, out agility))
+                    {
+                        SetValueByOffset(agility, charItem.AgilityBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new agility base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewAgilityEquipTb.Text != string.Empty)
+                {
+                    short agility = 0;
+                    if (short.TryParse(shiningForceCDNewAgilityEquipTb.Text, out agility))
+                    {
+                        SetValueByOffset(agility, charItem.AgilityEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new agility equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewMoveBaseTb.Text != string.Empty)
+                {
+                    short move = 0;
+                    if (short.TryParse(shiningForceCDNewMoveBaseTb.Text, out move))
+                    {
+                        SetValueByOffset(move, charItem.MoveBaseOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new move base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewMoveEquipTb.Text != string.Empty)
+                {
+                    short move = 0;
+                    if (short.TryParse(shiningForceCDNewMoveEquipTb.Text, out move))
+                    {
+                        SetValueByOffset(move, charItem.MoveEquipOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new move equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewExperienceTb.Text != string.Empty)
+                {
+                    short exp = 0;
+                    if (short.TryParse(shiningForceCDNewExperienceTb.Text, out exp))
+                    {
+                        SetValueByOffset(exp, charItem.ExperienceOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewPresentHPTb.Text != string.Empty)
+                {
+                    short hp = 0;
+                    if (short.TryParse(shiningForceCDNewPresentHPTb.Text, out hp))
+                    {
+                        SetValueByOffset(hp, charItem.PresentHPOffset, 0, 0);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new present HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewMaxHPTb.Text != string.Empty)
+                {
+                    short hp = 0;
+                    if (short.TryParse(shiningForceCDNewMaxHPTb.Text, out hp))
+                    {
+                        SetValueByOffset(hp, charItem.MaximumHPOffset, 0, 0);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewPresentMPTb.Text != string.Empty)
+                {
+                    short mp = 0;
+                    if (short.TryParse(shiningForceCDNewPresentMPTb.Text, out mp))
+                    {
+                        SetValueByOffset(mp, charItem.PresentMPOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new present MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+
+                if (shiningForceCDNewMaxMPTb.Text != string.Empty)
+                {
+                    short mp = 0;
+                    if (short.TryParse(shiningForceCDNewMaxMPTb.Text, out mp))
+                    {
+                        SetValueByOffset(mp, charItem.MaximumMPOffset, 1, 1);
+                    }
+                    else
+                    {
+                        MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+
+            MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ResetShiningForceCDControls(false);
+            PopulateShiningForceCDCurrentGold();
+
+            if (charItem != null)
+            {
+                PopulateShiningForceCDCharacterDetails(charItem);
+            }
+        }       
+        #endregion
+
+        #region - Sealed Classes -
+        private sealed class SfcdCharSlotDef
+        {
+            public string SlotId { get; } // stable key you invent, e.g. "Leader", "Archer1"
+            public string DefaultName { get; } // fallback display name
+            public Dictionary<ShiningForceCDBook, int> OffsetByBook { get; } = new();
+            public Dictionary<ShiningForceCDBook, string> NameByBook { get; } = new();
+
+            public SfcdCharSlotDef(string slotId, string defaultName)
+            {
+                SlotId = slotId;
+                DefaultName = defaultName;
+            }
+
+            public bool TryGetOffset(ShiningForceCDBook book, out int offset)
+                => OffsetByBook.TryGetValue(book, out offset);
+
+            public string GetName(ShiningForceCDBook book)
+                => NameByBook.TryGetValue(book, out var n) ? n : DefaultName;
+        }
+
+        private sealed class CharComboItem
+        {
+            public string Name { get;  set; } = "";
+            public int Offset { get; set; }
+            public string SlotId { get; set; } = "";
         }
         #endregion
     }

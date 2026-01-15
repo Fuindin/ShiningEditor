@@ -19,3 +19,16 @@ E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.GenerateR
 E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.CoreCompileInputs.cache
 E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.exe
 E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.pdb
+E:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.AssemblyReference.cache
+D:\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.exe.config
+D:\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.exe
+D:\Projects\ShiningEditor\ShiningEditor\bin\Debug\ShiningEditor.pdb
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.AssemblyReference.cache
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.AboutForm.resources
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.ErrorLogView.resources
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.MainForm.resources
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.Properties.Resources.resources
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.GenerateResource.cache
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.csproj.CoreCompileInputs.cache
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.exe
+D:\Projects\ShiningEditor\ShiningEditor\obj\Debug\ShiningEditor.pdb

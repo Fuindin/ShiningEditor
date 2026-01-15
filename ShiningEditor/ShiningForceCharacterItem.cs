@@ -99,9 +99,9 @@ namespace ShiningEditor
             string defenseLoc,
             string agilityLoc,
             string moveLoc,
-            string experienceLoc,
-            string currentHPLoc,
+            string experienceLoc,            
             string maxHPLoc,
+            string currentHPLoc,
             string currentMPLoc,
             string maxMPLoc,
             string[] itemsLocs,
@@ -117,7 +117,7 @@ namespace ShiningEditor
             CurrentHPLoc = currentHPLoc;
             MaxHPLoc = maxHPLoc;
             CurrentMPLoc = currentMPLoc;
-            MaxMPLoc = currentMPLoc;
+            MaxMPLoc = maxMPLoc;
             ItemsLocs = itemsLocs;
             MagicLocs = magicLocs;
         }
