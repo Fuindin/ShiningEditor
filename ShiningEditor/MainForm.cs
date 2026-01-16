@@ -37,7 +37,7 @@ namespace ShiningEditor
         private const string SHINING_FORCE_2_GOLD_LOC = "11A7A";
         private const string SHINING_FORCE_CD_GOLD_LOC = "0E078";
         private const string SHINING_FORCE_CD_BOOK_INDEX_OFFSET = "E0E1";
-        private const int SfcdCharTableBase = 0x0D522;
+        private const int SfcdCharTableBase = 0xD522;
         private const int SfcdCharSlotSize = 0x38;
         private const int SfcdNameOffset = 0x2E; // inside slot record
         private const int SfcdNameLength = 0x0A; // 10 bytes
@@ -186,6 +186,8 @@ namespace ShiningEditor
                         case AppPanel.ShiningForceCD:
                             ResetSfcdCaches();
                             DetermineShiningForceCDCurrentBook();
+                            shiningForceCDCurrentBookTb.Text = GetShiningForceCDCurrentBookString();
+
                             PopulateShiningForceCDCurrentGold();                            
                             PopulateShiningForceCDItemsList(_shiningForceCDBook);
                             PopulateShiningForceCDMagicList();
@@ -2579,7 +2581,7 @@ namespace ShiningEditor
             shiningForceCDDefenseBaseTb.Text = "";
             shiningForceCDNewDefenseBaseTb.Text = "";
             shiningForceCDDefenseEquipTb.Text = "";
-            shiningForceCDNewDefenseBaseTb.Text = "";
+            shiningForceCDNewDefenseEquipTb.Text = "";
             shiningForceCDAgilityBaseTb.Text = "";
             shiningForceCDNewAgilityBaseTb.Text = "";
             shiningForceCDAgilityEquipTb.Text = "";
@@ -2649,7 +2651,7 @@ namespace ShiningEditor
         {
             shiningForceCDSelectCharacterCmb.Items.Clear();
 
-            const int slotCount = 20;
+            const int slotCount = 27;
 
             string heroName = GetShiningForceCDPlayerName();
 
@@ -2659,10 +2661,10 @@ namespace ShiningEditor
             // Slot 1.. are other characters. Their names are stored in the PREVIOUS slot’s name field.
             for (int slot = 1; slot < slotCount; slot++)
             {
-                int offset = SfcdCharTableBase + (slot * SfcdCharSlotSize);
+                int statsOffset = SfcdCharTableBase + (slot * SfcdCharSlotSize);
 
                 // Name for this slot is stored in (slot - 1)
-                string name = ReadSfcdSlotName(slot - 1);
+                string name = ReadSfcdSlotNameFromStatsBase(statsOffset);
 
                 if (!loadAllSlotsEvenIfBlank && string.IsNullOrWhiteSpace(name))
                 {
@@ -2673,7 +2675,7 @@ namespace ShiningEditor
                     ? $"— Empty Slot {slot} —"
                     : name;
 
-                shiningForceCDSelectCharacterCmb.Items.Add(MakeChar(displayName, offset));
+                shiningForceCDSelectCharacterCmb.Items.Add(MakeChar(string.IsNullOrWhiteSpace(displayName) ? $"- Empty Slot {slot} -" : displayName, statsOffset));
             }
 
             shiningForceCDSelectCharacterCmb.DisplayMember = "Name";
@@ -2701,6 +2703,25 @@ namespace ShiningEditor
 
             return System.Text.Encoding.ASCII.GetString(nameBytes, 0, len).Trim();
         }
+
+        private string ReadSfcdSlotNameFromStatsBase(int statsBaseOffset)
+        {
+            // statsBaseOffset is slotStart + 0x10
+            int nameOffset = statsBaseOffset - 0x0A; // -> slotStart + 0x06
+
+            byte[] bytes = GetBytesByOffset(nameOffset.ToString("X"), 10);
+
+            // trim at first 0x00
+            int end = Array.IndexOf(bytes, (byte)0x00);
+            if (end < 0)
+            {
+                end = bytes.Length;
+            }
+
+            var name = System.Text.Encoding.ASCII.GetString(bytes, 0, end).Trim();
+            return name;
+        }
+
 
         private string GetSfcdItemName(byte rawId)
         {
@@ -4042,6 +4063,23 @@ namespace ShiningEditor
                 4 => ShiningForceCDBook.Book4TheLastBattle,
                 _ => ShiningForceCDBook.UnknownBook
             };
+        }
+
+        private string GetShiningForceCDCurrentBookString()
+        {
+            switch (_shiningForceCDBook)
+            {
+                case ShiningForceCDBook.Book1TowardsTheRootOfEvil:
+                    return "Book 1: Towards the Root of Evil";
+                case ShiningForceCDBook.Book2TheEvilGodAwakes:
+                    return "Book 2: The Evil God Awakes";
+                case ShiningForceCDBook.Book3ANewChallenge:
+                    return "Book 3: A New Challenge";
+                case ShiningForceCDBook.Book4TheLastBattle:
+                    return "Book 4: The Last Battle";
+                default:
+                    return "Unknown Book";
+            }
         }
 
         private static string Hex(int value) => value.ToString("X");

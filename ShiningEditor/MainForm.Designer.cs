@@ -264,6 +264,8 @@
             this.shiningForceCDSelectCharacterCmb = new System.Windows.Forms.ComboBox();
             this.label74 = new System.Windows.Forms.Label();
             this.shiningForceCDCoverPb = new System.Windows.Forms.PictureBox();
+            this.label81 = new System.Windows.Forms.Label();
+            this.shiningForceCDCurrentBookTb = new System.Windows.Forms.TextBox();
             this.menuStrip1.SuspendLayout();
             this.shiningPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.shiningPic)).BeginInit();
@@ -2019,6 +2021,8 @@
             // shiningForceCDPanel
             // 
             this.shiningForceCDPanel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.shiningForceCDPanel.Controls.Add(this.shiningForceCDCurrentBookTb);
+            this.shiningForceCDPanel.Controls.Add(this.label81);
             this.shiningForceCDPanel.Controls.Add(this.label95);
             this.shiningForceCDPanel.Controls.Add(this.shiningForceCDUpdateSaveStateBtn);
             this.shiningForceCDPanel.Controls.Add(this.shiningForceCDCurrentClassTb);
@@ -2088,7 +2092,7 @@
             // label95
             // 
             this.label95.AutoSize = true;
-            this.label95.Location = new System.Drawing.Point(400, 149);
+            this.label95.Location = new System.Drawing.Point(400, 185);
             this.label95.Name = "label95";
             this.label95.Size = new System.Drawing.Size(35, 13);
             this.label95.TabIndex = 235;
@@ -2108,7 +2112,7 @@
             // 
             this.shiningForceCDCurrentClassTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDCurrentClassTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDCurrentClassTb.Location = new System.Drawing.Point(93, 196);
+            this.shiningForceCDCurrentClassTb.Location = new System.Drawing.Point(93, 232);
             this.shiningForceCDCurrentClassTb.Name = "shiningForceCDCurrentClassTb";
             this.shiningForceCDCurrentClassTb.ReadOnly = true;
             this.shiningForceCDCurrentClassTb.Size = new System.Drawing.Size(132, 20);
@@ -2117,7 +2121,7 @@
             // label94
             // 
             this.label94.AutoSize = true;
-            this.label94.Location = new System.Drawing.Point(47, 196);
+            this.label94.Location = new System.Drawing.Point(47, 232);
             this.label94.Name = "label94";
             this.label94.Size = new System.Drawing.Size(35, 13);
             this.label94.TabIndex = 232;
@@ -2126,7 +2130,7 @@
             // 
             // shiningForceCDNewAgilityEquipTb
             // 
-            this.shiningForceCDNewAgilityEquipTb.Location = new System.Drawing.Point(244, 357);
+            this.shiningForceCDNewAgilityEquipTb.Location = new System.Drawing.Point(244, 393);
             this.shiningForceCDNewAgilityEquipTb.Name = "shiningForceCDNewAgilityEquipTb";
             this.shiningForceCDNewAgilityEquipTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewAgilityEquipTb.TabIndex = 231;
@@ -2135,7 +2139,7 @@
             // 
             this.shiningForceCDAgilityEquipTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDAgilityEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDAgilityEquipTb.Location = new System.Drawing.Point(93, 357);
+            this.shiningForceCDAgilityEquipTb.Location = new System.Drawing.Point(93, 393);
             this.shiningForceCDAgilityEquipTb.Name = "shiningForceCDAgilityEquipTb";
             this.shiningForceCDAgilityEquipTb.ReadOnly = true;
             this.shiningForceCDAgilityEquipTb.Size = new System.Drawing.Size(132, 20);
@@ -2145,7 +2149,7 @@
             // 
             this.shiningForceCDNewMoveBaseTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDNewMoveBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDNewMoveBaseTb.Location = new System.Drawing.Point(244, 384);
+            this.shiningForceCDNewMoveBaseTb.Location = new System.Drawing.Point(244, 420);
             this.shiningForceCDNewMoveBaseTb.Name = "shiningForceCDNewMoveBaseTb";
             this.shiningForceCDNewMoveBaseTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewMoveBaseTb.TabIndex = 229;
@@ -2154,7 +2158,7 @@
             // 
             this.shiningForceCDMoveBaseTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDMoveBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDMoveBaseTb.Location = new System.Drawing.Point(93, 384);
+            this.shiningForceCDMoveBaseTb.Location = new System.Drawing.Point(93, 420);
             this.shiningForceCDMoveBaseTb.Name = "shiningForceCDMoveBaseTb";
             this.shiningForceCDMoveBaseTb.ReadOnly = true;
             this.shiningForceCDMoveBaseTb.Size = new System.Drawing.Size(132, 20);
@@ -2162,7 +2166,7 @@
             // 
             // shiningForceCDNewDefenseEquipTb
             // 
-            this.shiningForceCDNewDefenseEquipTb.Location = new System.Drawing.Point(244, 303);
+            this.shiningForceCDNewDefenseEquipTb.Location = new System.Drawing.Point(244, 339);
             this.shiningForceCDNewDefenseEquipTb.Name = "shiningForceCDNewDefenseEquipTb";
             this.shiningForceCDNewDefenseEquipTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewDefenseEquipTb.TabIndex = 227;
@@ -2171,7 +2175,7 @@
             // 
             this.shiningForceCDDefenseEquipTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDDefenseEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDDefenseEquipTb.Location = new System.Drawing.Point(93, 303);
+            this.shiningForceCDDefenseEquipTb.Location = new System.Drawing.Point(93, 339);
             this.shiningForceCDDefenseEquipTb.Name = "shiningForceCDDefenseEquipTb";
             this.shiningForceCDDefenseEquipTb.ReadOnly = true;
             this.shiningForceCDDefenseEquipTb.Size = new System.Drawing.Size(132, 20);
@@ -2179,7 +2183,7 @@
             // 
             // shiningForceCDNewAttackEquipTb
             // 
-            this.shiningForceCDNewAttackEquipTb.Location = new System.Drawing.Point(244, 249);
+            this.shiningForceCDNewAttackEquipTb.Location = new System.Drawing.Point(244, 285);
             this.shiningForceCDNewAttackEquipTb.Name = "shiningForceCDNewAttackEquipTb";
             this.shiningForceCDNewAttackEquipTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewAttackEquipTb.TabIndex = 225;
@@ -2188,7 +2192,7 @@
             // 
             this.shiningForceCDAttackEquipTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDAttackEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDAttackEquipTb.Location = new System.Drawing.Point(93, 249);
+            this.shiningForceCDAttackEquipTb.Location = new System.Drawing.Point(93, 285);
             this.shiningForceCDAttackEquipTb.Name = "shiningForceCDAttackEquipTb";
             this.shiningForceCDAttackEquipTb.ReadOnly = true;
             this.shiningForceCDAttackEquipTb.Size = new System.Drawing.Size(132, 20);
@@ -2197,7 +2201,7 @@
             // shiningForceCDMagicListBox
             // 
             this.shiningForceCDMagicListBox.FormattingEnabled = true;
-            this.shiningForceCDMagicListBox.Location = new System.Drawing.Point(403, 320);
+            this.shiningForceCDMagicListBox.Location = new System.Drawing.Point(403, 356);
             this.shiningForceCDMagicListBox.Name = "shiningForceCDMagicListBox";
             this.shiningForceCDMagicListBox.Size = new System.Drawing.Size(138, 121);
             this.shiningForceCDMagicListBox.TabIndex = 221;
@@ -2205,7 +2209,7 @@
             // label93
             // 
             this.label93.AutoSize = true;
-            this.label93.Location = new System.Drawing.Point(400, 302);
+            this.label93.Location = new System.Drawing.Point(400, 338);
             this.label93.Name = "label93";
             this.label93.Size = new System.Drawing.Size(39, 13);
             this.label93.TabIndex = 220;
@@ -2214,14 +2218,14 @@
             // shiningForceCDItemsListBox
             // 
             this.shiningForceCDItemsListBox.FormattingEnabled = true;
-            this.shiningForceCDItemsListBox.Location = new System.Drawing.Point(403, 170);
+            this.shiningForceCDItemsListBox.Location = new System.Drawing.Point(403, 206);
             this.shiningForceCDItemsListBox.Name = "shiningForceCDItemsListBox";
             this.shiningForceCDItemsListBox.Size = new System.Drawing.Size(138, 121);
             this.shiningForceCDItemsListBox.TabIndex = 219;
             // 
             // shiningForceCDNewDefenseBaseTb
             // 
-            this.shiningForceCDNewDefenseBaseTb.Location = new System.Drawing.Point(244, 276);
+            this.shiningForceCDNewDefenseBaseTb.Location = new System.Drawing.Point(244, 312);
             this.shiningForceCDNewDefenseBaseTb.Name = "shiningForceCDNewDefenseBaseTb";
             this.shiningForceCDNewDefenseBaseTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewDefenseBaseTb.TabIndex = 218;
@@ -2230,21 +2234,21 @@
             // 
             this.shiningForceCDNewMoveEquipTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDNewMoveEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDNewMoveEquipTb.Location = new System.Drawing.Point(244, 412);
+            this.shiningForceCDNewMoveEquipTb.Location = new System.Drawing.Point(244, 448);
             this.shiningForceCDNewMoveEquipTb.Name = "shiningForceCDNewMoveEquipTb";
             this.shiningForceCDNewMoveEquipTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewMoveEquipTb.TabIndex = 217;
             // 
             // shiningForceCDNewAttackBaseTb
             // 
-            this.shiningForceCDNewAttackBaseTb.Location = new System.Drawing.Point(244, 222);
+            this.shiningForceCDNewAttackBaseTb.Location = new System.Drawing.Point(244, 258);
             this.shiningForceCDNewAttackBaseTb.Name = "shiningForceCDNewAttackBaseTb";
             this.shiningForceCDNewAttackBaseTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewAttackBaseTb.TabIndex = 215;
             // 
             // shiningForceCDNewAgilityBaseTb
             // 
-            this.shiningForceCDNewAgilityBaseTb.Location = new System.Drawing.Point(244, 330);
+            this.shiningForceCDNewAgilityBaseTb.Location = new System.Drawing.Point(244, 366);
             this.shiningForceCDNewAgilityBaseTb.Name = "shiningForceCDNewAgilityBaseTb";
             this.shiningForceCDNewAgilityBaseTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewAgilityBaseTb.TabIndex = 213;
@@ -2253,7 +2257,7 @@
             // 
             this.shiningForceCDDefenseBaseTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDDefenseBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDDefenseBaseTb.Location = new System.Drawing.Point(93, 276);
+            this.shiningForceCDDefenseBaseTb.Location = new System.Drawing.Point(93, 312);
             this.shiningForceCDDefenseBaseTb.Name = "shiningForceCDDefenseBaseTb";
             this.shiningForceCDDefenseBaseTb.ReadOnly = true;
             this.shiningForceCDDefenseBaseTb.Size = new System.Drawing.Size(132, 20);
@@ -2263,7 +2267,7 @@
             // 
             this.shiningForceCDAttackBaseTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDAttackBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDAttackBaseTb.Location = new System.Drawing.Point(93, 222);
+            this.shiningForceCDAttackBaseTb.Location = new System.Drawing.Point(93, 258);
             this.shiningForceCDAttackBaseTb.Name = "shiningForceCDAttackBaseTb";
             this.shiningForceCDAttackBaseTb.ReadOnly = true;
             this.shiningForceCDAttackBaseTb.Size = new System.Drawing.Size(132, 20);
@@ -2273,7 +2277,7 @@
             // 
             this.shiningForceCDAgilityBaseTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDAgilityBaseTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDAgilityBaseTb.Location = new System.Drawing.Point(93, 330);
+            this.shiningForceCDAgilityBaseTb.Location = new System.Drawing.Point(93, 366);
             this.shiningForceCDAgilityBaseTb.Name = "shiningForceCDAgilityBaseTb";
             this.shiningForceCDAgilityBaseTb.ReadOnly = true;
             this.shiningForceCDAgilityBaseTb.Size = new System.Drawing.Size(132, 20);
@@ -2283,7 +2287,7 @@
             // 
             this.shiningForceCDMoveEquipTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDMoveEquipTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDMoveEquipTb.Location = new System.Drawing.Point(93, 412);
+            this.shiningForceCDMoveEquipTb.Location = new System.Drawing.Point(93, 448);
             this.shiningForceCDMoveEquipTb.Name = "shiningForceCDMoveEquipTb";
             this.shiningForceCDMoveEquipTb.ReadOnly = true;
             this.shiningForceCDMoveEquipTb.Size = new System.Drawing.Size(132, 20);
@@ -2291,28 +2295,28 @@
             // 
             // shiningForceCDNewMaxMPTb
             // 
-            this.shiningForceCDNewMaxMPTb.Location = new System.Drawing.Point(244, 557);
+            this.shiningForceCDNewMaxMPTb.Location = new System.Drawing.Point(244, 593);
             this.shiningForceCDNewMaxMPTb.Name = "shiningForceCDNewMaxMPTb";
             this.shiningForceCDNewMaxMPTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewMaxMPTb.TabIndex = 210;
             // 
             // shiningForceCDNewPresentMPTb
             // 
-            this.shiningForceCDNewPresentMPTb.Location = new System.Drawing.Point(244, 528);
+            this.shiningForceCDNewPresentMPTb.Location = new System.Drawing.Point(244, 564);
             this.shiningForceCDNewPresentMPTb.Name = "shiningForceCDNewPresentMPTb";
             this.shiningForceCDNewPresentMPTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewPresentMPTb.TabIndex = 208;
             // 
             // shiningForceCDNewMaxHPTb
             // 
-            this.shiningForceCDNewMaxHPTb.Location = new System.Drawing.Point(244, 499);
+            this.shiningForceCDNewMaxHPTb.Location = new System.Drawing.Point(244, 535);
             this.shiningForceCDNewMaxHPTb.Name = "shiningForceCDNewMaxHPTb";
             this.shiningForceCDNewMaxHPTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewMaxHPTb.TabIndex = 206;
             // 
             // shiningForceCDNewPresentHPTb
             // 
-            this.shiningForceCDNewPresentHPTb.Location = new System.Drawing.Point(244, 471);
+            this.shiningForceCDNewPresentHPTb.Location = new System.Drawing.Point(244, 507);
             this.shiningForceCDNewPresentHPTb.Name = "shiningForceCDNewPresentHPTb";
             this.shiningForceCDNewPresentHPTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewPresentHPTb.TabIndex = 204;
@@ -2321,7 +2325,7 @@
             // 
             this.shiningForceCDMaxMPTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDMaxMPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDMaxMPTb.Location = new System.Drawing.Point(93, 557);
+            this.shiningForceCDMaxMPTb.Location = new System.Drawing.Point(93, 593);
             this.shiningForceCDMaxMPTb.Name = "shiningForceCDMaxMPTb";
             this.shiningForceCDMaxMPTb.ReadOnly = true;
             this.shiningForceCDMaxMPTb.Size = new System.Drawing.Size(132, 20);
@@ -2331,7 +2335,7 @@
             // 
             this.shiningForceCDPresentMPTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDPresentMPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDPresentMPTb.Location = new System.Drawing.Point(93, 528);
+            this.shiningForceCDPresentMPTb.Location = new System.Drawing.Point(93, 564);
             this.shiningForceCDPresentMPTb.Name = "shiningForceCDPresentMPTb";
             this.shiningForceCDPresentMPTb.ReadOnly = true;
             this.shiningForceCDPresentMPTb.Size = new System.Drawing.Size(132, 20);
@@ -2340,7 +2344,7 @@
             // shiningForceCDMaxHPTb
             // 
             this.shiningForceCDMaxHPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDMaxHPTb.Location = new System.Drawing.Point(93, 499);
+            this.shiningForceCDMaxHPTb.Location = new System.Drawing.Point(93, 535);
             this.shiningForceCDMaxHPTb.Name = "shiningForceCDMaxHPTb";
             this.shiningForceCDMaxHPTb.Size = new System.Drawing.Size(132, 20);
             this.shiningForceCDMaxHPTb.TabIndex = 205;
@@ -2349,7 +2353,7 @@
             // 
             this.shiningForceCDPresentHPTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDPresentHPTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDPresentHPTb.Location = new System.Drawing.Point(93, 471);
+            this.shiningForceCDPresentHPTb.Location = new System.Drawing.Point(93, 507);
             this.shiningForceCDPresentHPTb.Name = "shiningForceCDPresentHPTb";
             this.shiningForceCDPresentHPTb.ReadOnly = true;
             this.shiningForceCDPresentHPTb.Size = new System.Drawing.Size(132, 20);
@@ -2357,7 +2361,7 @@
             // 
             // shiningForceCDNewExperienceTb
             // 
-            this.shiningForceCDNewExperienceTb.Location = new System.Drawing.Point(244, 441);
+            this.shiningForceCDNewExperienceTb.Location = new System.Drawing.Point(244, 477);
             this.shiningForceCDNewExperienceTb.Name = "shiningForceCDNewExperienceTb";
             this.shiningForceCDNewExperienceTb.Size = new System.Drawing.Size(130, 20);
             this.shiningForceCDNewExperienceTb.TabIndex = 202;
@@ -2366,7 +2370,7 @@
             // 
             this.shiningForceCDExperienceTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDExperienceTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDExperienceTb.Location = new System.Drawing.Point(93, 441);
+            this.shiningForceCDExperienceTb.Location = new System.Drawing.Point(93, 477);
             this.shiningForceCDExperienceTb.Name = "shiningForceCDExperienceTb";
             this.shiningForceCDExperienceTb.ReadOnly = true;
             this.shiningForceCDExperienceTb.Size = new System.Drawing.Size(132, 20);
@@ -2376,7 +2380,7 @@
             // 
             this.shiningForceCDCurrentLevelTb.BackColor = System.Drawing.Color.White;
             this.shiningForceCDCurrentLevelTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDCurrentLevelTb.Location = new System.Drawing.Point(93, 170);
+            this.shiningForceCDCurrentLevelTb.Location = new System.Drawing.Point(93, 206);
             this.shiningForceCDCurrentLevelTb.Name = "shiningForceCDCurrentLevelTb";
             this.shiningForceCDCurrentLevelTb.ReadOnly = true;
             this.shiningForceCDCurrentLevelTb.Size = new System.Drawing.Size(132, 20);
@@ -2385,7 +2389,7 @@
             // label75
             // 
             this.label75.AutoSize = true;
-            this.label75.Location = new System.Drawing.Point(16, 356);
+            this.label75.Location = new System.Drawing.Point(16, 392);
             this.label75.Name = "label75";
             this.label75.Size = new System.Drawing.Size(67, 13);
             this.label75.TabIndex = 199;
@@ -2395,7 +2399,7 @@
             // label76
             // 
             this.label76.AutoSize = true;
-            this.label76.Location = new System.Drawing.Point(19, 383);
+            this.label76.Location = new System.Drawing.Point(19, 419);
             this.label76.Name = "label76";
             this.label76.Size = new System.Drawing.Size(64, 13);
             this.label76.TabIndex = 198;
@@ -2405,7 +2409,7 @@
             // label79
             // 
             this.label79.AutoSize = true;
-            this.label79.Location = new System.Drawing.Point(3, 302);
+            this.label79.Location = new System.Drawing.Point(3, 338);
             this.label79.Name = "label79";
             this.label79.Size = new System.Drawing.Size(80, 13);
             this.label79.TabIndex = 197;
@@ -2415,7 +2419,7 @@
             // label80
             // 
             this.label80.AutoSize = true;
-            this.label80.Location = new System.Drawing.Point(12, 248);
+            this.label80.Location = new System.Drawing.Point(12, 284);
             this.label80.Name = "label80";
             this.label80.Size = new System.Drawing.Size(71, 13);
             this.label80.TabIndex = 196;
@@ -2425,7 +2429,7 @@
             // label83
             // 
             this.label83.AutoSize = true;
-            this.label83.Location = new System.Drawing.Point(6, 275);
+            this.label83.Location = new System.Drawing.Point(6, 311);
             this.label83.Name = "label83";
             this.label83.Size = new System.Drawing.Size(77, 13);
             this.label83.TabIndex = 190;
@@ -2435,7 +2439,7 @@
             // label84
             // 
             this.label84.AutoSize = true;
-            this.label84.Location = new System.Drawing.Point(15, 221);
+            this.label84.Location = new System.Drawing.Point(15, 257);
             this.label84.Name = "label84";
             this.label84.Size = new System.Drawing.Size(68, 13);
             this.label84.TabIndex = 191;
@@ -2445,7 +2449,7 @@
             // label85
             // 
             this.label85.AutoSize = true;
-            this.label85.Location = new System.Drawing.Point(19, 329);
+            this.label85.Location = new System.Drawing.Point(19, 365);
             this.label85.Name = "label85";
             this.label85.Size = new System.Drawing.Size(64, 13);
             this.label85.TabIndex = 192;
@@ -2455,7 +2459,7 @@
             // label86
             // 
             this.label86.AutoSize = true;
-            this.label86.Location = new System.Drawing.Point(16, 411);
+            this.label86.Location = new System.Drawing.Point(16, 447);
             this.label86.Name = "label86";
             this.label86.Size = new System.Drawing.Size(67, 13);
             this.label86.TabIndex = 193;
@@ -2465,7 +2469,7 @@
             // label87
             // 
             this.label87.AutoSize = true;
-            this.label87.Location = new System.Drawing.Point(34, 556);
+            this.label87.Location = new System.Drawing.Point(34, 592);
             this.label87.Name = "label87";
             this.label87.Size = new System.Drawing.Size(49, 13);
             this.label87.TabIndex = 186;
@@ -2475,7 +2479,7 @@
             // label88
             // 
             this.label88.AutoSize = true;
-            this.label88.Location = new System.Drawing.Point(18, 527);
+            this.label88.Location = new System.Drawing.Point(18, 563);
             this.label88.Name = "label88";
             this.label88.Size = new System.Drawing.Size(65, 13);
             this.label88.TabIndex = 187;
@@ -2485,7 +2489,7 @@
             // label89
             // 
             this.label89.AutoSize = true;
-            this.label89.Location = new System.Drawing.Point(35, 498);
+            this.label89.Location = new System.Drawing.Point(35, 534);
             this.label89.Name = "label89";
             this.label89.Size = new System.Drawing.Size(48, 13);
             this.label89.TabIndex = 188;
@@ -2495,7 +2499,7 @@
             // label90
             // 
             this.label90.AutoSize = true;
-            this.label90.Location = new System.Drawing.Point(19, 470);
+            this.label90.Location = new System.Drawing.Point(19, 506);
             this.label90.Name = "label90";
             this.label90.Size = new System.Drawing.Size(64, 13);
             this.label90.TabIndex = 189;
@@ -2505,7 +2509,7 @@
             // label91
             // 
             this.label91.AutoSize = true;
-            this.label91.Location = new System.Drawing.Point(20, 440);
+            this.label91.Location = new System.Drawing.Point(20, 476);
             this.label91.Name = "label91";
             this.label91.Size = new System.Drawing.Size(63, 13);
             this.label91.TabIndex = 185;
@@ -2515,7 +2519,7 @@
             // label92
             // 
             this.label92.AutoSize = true;
-            this.label92.Location = new System.Drawing.Point(47, 170);
+            this.label92.Location = new System.Drawing.Point(47, 206);
             this.label92.Name = "label92";
             this.label92.Size = new System.Drawing.Size(36, 13);
             this.label92.TabIndex = 184;
@@ -2549,7 +2553,7 @@
             // 
             this.label68.AutoSize = true;
             this.label68.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label68.Location = new System.Drawing.Point(243, 148);
+            this.label68.Location = new System.Drawing.Point(243, 184);
             this.label68.Name = "label68";
             this.label68.Size = new System.Drawing.Size(131, 13);
             this.label68.TabIndex = 142;
@@ -2559,7 +2563,7 @@
             // 
             this.label69.AutoSize = true;
             this.label69.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Underline, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label69.Location = new System.Drawing.Point(90, 148);
+            this.label69.Location = new System.Drawing.Point(90, 184);
             this.label69.Name = "label69";
             this.label69.Size = new System.Drawing.Size(137, 13);
             this.label69.TabIndex = 143;
@@ -2650,6 +2654,26 @@
             this.shiningForceCDCoverPb.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.shiningForceCDCoverPb.TabIndex = 133;
             this.shiningForceCDCoverPb.TabStop = false;
+            // 
+            // label81
+            // 
+            this.label81.AutoSize = true;
+            this.label81.Location = new System.Drawing.Point(47, 151);
+            this.label81.Name = "label81";
+            this.label81.Size = new System.Drawing.Size(35, 13);
+            this.label81.TabIndex = 236;
+            this.label81.Text = "Book:";
+            this.label81.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // shiningForceCDCurrentBookTb
+            // 
+            this.shiningForceCDCurrentBookTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDCurrentBookTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDCurrentBookTb.Location = new System.Drawing.Point(92, 149);
+            this.shiningForceCDCurrentBookTb.Name = "shiningForceCDCurrentBookTb";
+            this.shiningForceCDCurrentBookTb.ReadOnly = true;
+            this.shiningForceCDCurrentBookTb.Size = new System.Drawing.Size(444, 20);
+            this.shiningForceCDCurrentBookTb.TabIndex = 237;
             // 
             // MainForm
             // 
@@ -2925,6 +2949,8 @@
         private System.Windows.Forms.TextBox shiningForceCDCurrentLevelTb;
         private System.Windows.Forms.Button shiningForceCDUpdateSaveStateBtn;
         private System.Windows.Forms.Label label95;
+        private System.Windows.Forms.Label label81;
+        private System.Windows.Forms.TextBox shiningForceCDCurrentBookTb;
     }
 }
 
