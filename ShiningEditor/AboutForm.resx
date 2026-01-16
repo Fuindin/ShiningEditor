@@ -117,4 +117,13 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="descriptionRichTb.Text" xml:space="preserve">
+    <value>Shining Editor is a Genesis / Mega Drive save state editor. 
+
+It allows a user to edit a save state created from the Fusion364 
+emulator. The user has the ability to edit the party's gold 
+and stats and experience for each playable character in:
+Shining in the Darkness, Shining Force, Shining Force II, and
+Shining Force CD.</value>
+  </data>
 </root>
