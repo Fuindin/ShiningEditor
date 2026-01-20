@@ -1657,15 +1657,8 @@ namespace ShiningEditor
 
         private string GetShiningForce2CurrentGold()
         {
-            byte[] bytes = GetBytesByOffset(SHINING_FORCE_2_GOLD_LOC, 4);
-
-            // Save states store gold as BIG-endian
-            if (BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(bytes);
-            }
-
-            uint gold = BitConverter.ToUInt32(bytes, 0);
+            string hexVal = GetValueByOffset(SHINING_FORCE_2_GOLD_LOC, 2);
+            long gold = long.Parse(hexVal, System.Globalization.NumberStyles.HexNumber);
             return gold.ToString();
         }
 
@@ -3856,14 +3849,14 @@ namespace ShiningEditor
             ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
             if (shiningForce2NewGoldTb.Text != string.Empty)
             {
-                uint gold = 0;
-                if (uint.TryParse(shiningForce2NewGoldTb.Text, out gold))
+                ushort gold = 0;
+                if (ushort.TryParse(shiningForce2NewGoldTb.Text, out gold))
                 {
-                    SetUInt32BigEndianByOffset(gold, SHINING_FORCE_2_GOLD_LOC);
+                    SetValueByOffset(gold, SHINING_FORCE_2_GOLD_LOC, 0, 2);
                 }
                 else
                 {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("You must enter a numeric value for the new gold value that doesn't exceed 65535.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
 
