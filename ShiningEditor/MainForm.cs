@@ -1657,8 +1657,15 @@ namespace ShiningEditor
 
         private string GetShiningForce2CurrentGold()
         {
-            string hexVal = GetValueByOffset(SHINING_FORCE_2_GOLD_LOC, 2);
-            long gold = long.Parse(hexVal, System.Globalization.NumberStyles.HexNumber);
+            byte[] bytes = GetBytesByOffset(SHINING_FORCE_2_GOLD_LOC, 4);
+
+            // Save states store gold as BIG-endian
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(bytes);
+            }
+
+            uint gold = BitConverter.ToUInt32(bytes, 0);
             return gold.ToString();
         }
 
@@ -3849,10 +3856,10 @@ namespace ShiningEditor
             ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
             if (shiningForce2NewGoldTb.Text != string.Empty)
             {
-                ushort gold = 0;
-                if (ushort.TryParse(shiningForce2NewGoldTb.Text, out gold))
+                uint gold = 0;
+                if (uint.TryParse(shiningForce2NewGoldTb.Text, out gold))
                 {
-                    SetValueByOffset(gold, SHINING_FORCE_2_GOLD_LOC, 0, 2);
+                    SetUInt32BigEndianByOffset(gold, SHINING_FORCE_2_GOLD_LOC);
                 }
                 else
                 {

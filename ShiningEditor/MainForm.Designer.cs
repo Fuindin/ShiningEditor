@@ -203,6 +203,8 @@
             this.label59 = new System.Windows.Forms.Label();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.shiningForceCDPanel = new System.Windows.Forms.Panel();
+            this.shiningForceCDCurrentBookTb = new System.Windows.Forms.TextBox();
+            this.label81 = new System.Windows.Forms.Label();
             this.label95 = new System.Windows.Forms.Label();
             this.shiningForceCDUpdateSaveStateBtn = new System.Windows.Forms.Button();
             this.shiningForceCDCurrentClassTb = new System.Windows.Forms.TextBox();
@@ -264,8 +266,6 @@
             this.shiningForceCDSelectCharacterCmb = new System.Windows.Forms.ComboBox();
             this.label74 = new System.Windows.Forms.Label();
             this.shiningForceCDCoverPb = new System.Windows.Forms.PictureBox();
-            this.label81 = new System.Windows.Forms.Label();
-            this.shiningForceCDCurrentBookTb = new System.Windows.Forms.TextBox();
             this.menuStrip1.SuspendLayout();
             this.shiningPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.shiningPic)).BeginInit();
@@ -2089,6 +2089,26 @@
             this.shiningForceCDPanel.Size = new System.Drawing.Size(700, 657);
             this.shiningForceCDPanel.TabIndex = 9;
             // 
+            // shiningForceCDCurrentBookTb
+            // 
+            this.shiningForceCDCurrentBookTb.BackColor = System.Drawing.Color.White;
+            this.shiningForceCDCurrentBookTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.shiningForceCDCurrentBookTb.Location = new System.Drawing.Point(92, 149);
+            this.shiningForceCDCurrentBookTb.Name = "shiningForceCDCurrentBookTb";
+            this.shiningForceCDCurrentBookTb.ReadOnly = true;
+            this.shiningForceCDCurrentBookTb.Size = new System.Drawing.Size(444, 20);
+            this.shiningForceCDCurrentBookTb.TabIndex = 237;
+            // 
+            // label81
+            // 
+            this.label81.AutoSize = true;
+            this.label81.Location = new System.Drawing.Point(47, 151);
+            this.label81.Name = "label81";
+            this.label81.Size = new System.Drawing.Size(35, 13);
+            this.label81.TabIndex = 236;
+            this.label81.Text = "Book:";
+            this.label81.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
             // label95
             // 
             this.label95.AutoSize = true;
@@ -2655,26 +2675,6 @@
             this.shiningForceCDCoverPb.TabIndex = 133;
             this.shiningForceCDCoverPb.TabStop = false;
             // 
-            // label81
-            // 
-            this.label81.AutoSize = true;
-            this.label81.Location = new System.Drawing.Point(47, 151);
-            this.label81.Name = "label81";
-            this.label81.Size = new System.Drawing.Size(35, 13);
-            this.label81.TabIndex = 236;
-            this.label81.Text = "Book:";
-            this.label81.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
-            // shiningForceCDCurrentBookTb
-            // 
-            this.shiningForceCDCurrentBookTb.BackColor = System.Drawing.Color.White;
-            this.shiningForceCDCurrentBookTb.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.shiningForceCDCurrentBookTb.Location = new System.Drawing.Point(92, 149);
-            this.shiningForceCDCurrentBookTb.Name = "shiningForceCDCurrentBookTb";
-            this.shiningForceCDCurrentBookTb.ReadOnly = true;
-            this.shiningForceCDCurrentBookTb.Size = new System.Drawing.Size(444, 20);
-            this.shiningForceCDCurrentBookTb.TabIndex = 237;
-            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -2684,10 +2684,10 @@
             this.Controls.Add(this.saveStateFileTb);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.menuStrip1);
-            this.Controls.Add(this.shiningForceCDPanel);
             this.Controls.Add(this.shiningForce2Panel);
             this.Controls.Add(this.shiningForcePanel);
             this.Controls.Add(this.shiningPanel);
+            this.Controls.Add(this.shiningForceCDPanel);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "MainForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
