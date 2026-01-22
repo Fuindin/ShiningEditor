@@ -1683,7 +1683,7 @@ namespace ShiningEditor
             shiningForce2CurDefenseBaseTb.Text = "";
             shiningForce2NewDefenseBaseTb.Text = "";
             shiningForce2CurDefenseEquipTb.Text = "";
-            shiningForce2NewDefenseBaseTb.Text = "";
+            shiningForce2NewDefenseEquipTb.Text = "";
             shiningForce2CurAgilityBaseTb.Text = "";
             shiningForce2NewAgilityBaseTb.Text = "";
             shiningForce2CurAgilityEquipTb.Text = "";
