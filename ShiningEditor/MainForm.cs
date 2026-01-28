@@ -483,6 +483,7 @@ namespace ShiningEditor
             value = GetValueByOffset(charItem.MaxHPLoc, 2);
             val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
             shiningMaxHPTb.Text = val.ToString();
+
             if (charItem.Name != "Hiro")
             {
                 ShowControl(shiningNewCurMPTb, true);
@@ -499,6 +500,7 @@ namespace ShiningEditor
                 ShowControl(shiningNewCurMPTb, false);
                 ShowControl(shiningNewMaxMPTb, false);
             }
+
             value = GetValueByOffset(charItem.IQLoc, 2);
             val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
             shiningIQTb.Text = val.ToString();
