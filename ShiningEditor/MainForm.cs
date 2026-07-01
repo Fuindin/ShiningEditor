@@ -77,11 +77,13 @@ namespace ShiningEditor
         #endregion
 
         #region - Class Properties -
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool FileLoaded
         {
             get { return fileLoaded; }
             set { fileLoaded = value; }
         }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public AppPanel ActivePanel
         {
             get { return activePanel; }
