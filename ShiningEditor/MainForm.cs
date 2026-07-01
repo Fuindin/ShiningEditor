@@ -187,6 +187,7 @@ namespace ShiningEditor
 
                     saveStateFileTb.Text = openFD.FileName;
                     FileLoaded = true;
+                    EnsureBufferLoaded();   // load the whole file into memory once
                     switch (ActivePanel)
                     {
                         case AppPanel.ShiningInTheDarkness:
@@ -3295,383 +3296,182 @@ namespace ShiningEditor
             }
         }
 
-        private string GetValueByOffset(string offset, int bytesToRead)
+        // ── In-memory save-state buffer ──────────────────────────────────────
+        // The whole file is loaded once into _fileBytes; all reads and writes go
+        // through it, and each "Update Save State" flushes it to disk in a single
+        // write (instead of re-opening the file for every field).
+        private byte[] _fileBytes;
+        private string _loadedPath;
+
+        private static int ParseOffset(string offset) =>
+            int.Parse(offset, System.Globalization.NumberStyles.HexNumber);
+
+        /// <summary>Ensures _fileBytes holds the contents of the file named in the path box.</summary>
+        private bool EnsureBufferLoaded()
         {
-            string value = string.Empty;
-            BinaryReader reader = null;
+            string path = saveStateFileTb.Text;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                return false;
+            }
+
+            if (_fileBytes != null && string.Equals(_loadedPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
 
             try
             {
-                // Open read-only with sharing so a read never needs write access and
-                // won't fail if the emulator still holds the file.
-                reader = new BinaryReader(new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
-                // Set the position of the reader by the offset
-                reader.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                // Read the offset
-                value = BitConverter.ToString(reader.ReadBytes(bytesToRead)).Replace("-", null);
+                _fileBytes = File.ReadAllBytes(path);
+                _loadedPath = path;
+                return true;
             }
-            catch (IOException ioe)
+            catch (Exception e)
             {
-                LogError(ioe.Message + " Occurred when attempting to read a value by its offset.");
+                LogError(e.Message + " Occurred while loading the save state into memory.");
+                _fileBytes = null;
+                _loadedPath = null;
+                return false;
             }
-            catch (ArgumentException aue)
+        }
+
+        /// <summary>Writes the in-memory buffer back to disk in a single operation.</summary>
+        private bool SaveBufferToDisk()
+        {
+            if (_fileBytes == null || string.IsNullOrEmpty(_loadedPath))
             {
-                LogError(aue.Message + " Occurred when attempting to read a value by its offset.");
+                return false;
+            }
+
+            try
+            {
+                File.WriteAllBytes(_loadedPath, _fileBytes);
+                return true;
+            }
+            catch (Exception e)
+            {
+                LogError(e.Message + " Occurred while saving the save state to disk.");
+                MessageBox.Show("The save state could not be written to disk. See the error log for details.",
+                    "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>Copies <paramref name="count"/> bytes from source[index..] into the buffer at offset.</summary>
+        private bool WriteBytes(int offset, byte[] source, int index, int count)
+        {
+            if (!EnsureBufferLoaded())
+            {
+                return false;
+            }
+
+            if (offset < 0 || count < 0 || index < 0
+                || offset + count > _fileBytes.Length || index + count > source.Length)
+            {
+                LogError($"Refused out-of-range write at offset 0x{offset:X} ({count} bytes).");
+                return false;
+            }
+
+            Buffer.BlockCopy(source, index, _fileBytes, offset, count);
+            return true;
+        }
+
+        private string GetValueByOffset(string offset, int bytesToRead)
+        {
+            if (!EnsureBufferLoaded())
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                return BitConverter.ToString(_fileBytes, ParseOffset(offset), bytesToRead).Replace("-", null);
             }
             catch (Exception e)
             {
                 LogError(e.Message + " Occurred when attempting to read a value by its offset.");
+                return string.Empty;
             }
-            finally
-            {
-                // reader is null if the FileStream constructor threw — guard against
-                // a NullReferenceException that would mask the real error.
-                reader?.Dispose();
-            }
-
-            return value;
         }
 
-        private byte[] GetBytesByOffset(string offset, int bytesToRead)
-        {
-            using var reader = new BinaryReader(
-                new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read)
-            );
-
-            reader.BaseStream.Position =
-                long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-
-            return reader.ReadBytes(bytesToRead);
-        }
+        private byte[] GetBytesByOffset(string offset, int bytesToRead) =>
+            GetBytesByOffset(ParseOffset(offset), bytesToRead);
 
         private byte[] GetBytesByOffset(int offset, int length)
         {
-            using var fs = new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-
-            fs.Position = offset;
-
-            byte[] buffer = new byte[length];
-            int read = fs.Read(buffer, 0, length);
-
-
-            if (read != length)
+            if (!EnsureBufferLoaded() || offset < 0 || offset >= _fileBytes.Length)
             {
-                Array.Resize(ref buffer, read);
+                return Array.Empty<byte>();
             }
 
+            int available = Math.Min(length, _fileBytes.Length - offset);
+            byte[] buffer = new byte[available];
+            Buffer.BlockCopy(_fileBytes, offset, buffer, 0, available);
             return buffer;
         }
 
 
+        // Genesis/Sega CD saves are big-endian, so multi-byte values are reversed
+        // before writing. Each overload builds its bytes and routes through WriteBytes.
         private bool SetValueByOffset(string value, string offset)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                int valNum = Convert.ToInt32(value);
-                byte[] bytes = BitConverter.GetBytes(valNum).Reverse().ToArray();
-                writer.Write(bytes);
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(Convert.ToInt32(value)).Reverse().ToArray();
+            return WriteBytes(ParseOffset(offset), bytes, 0, 4);
         }
 
         private bool SetValueByOffset(long value, string offset)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                writer.Write(bytes);
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return WriteBytes(ParseOffset(offset), bytes, 0, 8);
         }
 
         private bool SetValueByOffset(int value, string offset, int numBytes = 0)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                if (numBytes == 0)
-                {
-                    writer.Write(bytes);
-                }
-                else
-                {
-                    writer.Write(bytes, 1, numBytes);
-                }
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return numBytes == 0
+                ? WriteBytes(ParseOffset(offset), bytes, 0, 4)
+                : WriteBytes(ParseOffset(offset), bytes, 1, numBytes);
         }
 
         private bool SetValueByOffset(short value, string offset, int index = 0, int numBytes = 0)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                if (numBytes == 0 && index == 0)
-                {
-                    writer.Write(bytes);
-                }
-                else
-                {
-                    writer.Write(bytes, index, numBytes);
-                }
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return (numBytes == 0 && index == 0)
+                ? WriteBytes(ParseOffset(offset), bytes, 0, 2)
+                : WriteBytes(ParseOffset(offset), bytes, index, numBytes);
         }
 
         private bool SetValueByOffset(ushort value, string offset, int index = 0, int numBytes = 0)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-
-                if (numBytes == 0)
-                {
-                    writer.Write(bytes);
-                }
-                else
-                {
-                    writer.Write(bytes, index, numBytes);
-                }
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return numBytes == 0
+                ? WriteBytes(ParseOffset(offset), bytes, 0, 2)
+                : WriteBytes(ParseOffset(offset), bytes, index, numBytes);
         }
 
         private bool SetUInt32BigEndianByOffset(uint value, string offset)
         {
-            try
+            byte[] bytes = BitConverter.GetBytes(value);
+            if (BitConverter.IsLittleEndian)
             {
-                using (var stream = new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Write, FileShare.Read))
-                using (var writer = new BinaryWriter(stream))
-                {
-                    writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-
-                    // Convert to bytes
-                    byte[] bytes = BitConverter.GetBytes(value);
-
-                    // Save is big-endian, so reverse on little-endian machines (Windows)
-                    if (BitConverter.IsLittleEndian)
-                    {
-                        Array.Reverse(bytes);
-                    }
-
-                    writer.Write(bytes); // 4 bytes
-                }
-
-                return true;
+                Array.Reverse(bytes);   // save is big-endian
             }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write gold to the save state file.");
-                return false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write gold to the save state file.");
-                return false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write gold to the save state file.");
-                return false;
-            }
+            return WriteBytes(ParseOffset(offset), bytes, 0, 4);
         }
 
-        private bool SetByteByOffset(byte value, string offset)
-        {
-            try
-            {
-                using (var writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Write, FileShare.Read)))
-                {
-                    writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                    writer.Write(value);
-                    return true;
-                }
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a byte to the save state file.");
-                return false;
-            }
-        }
+        private bool SetByteByOffset(byte value, string offset) =>
+            WriteBytes(ParseOffset(offset), new[] { value }, 0, 1);
 
-        private bool SetValueByOffset(byte value, string offset)
-        {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                writer.Write(value);
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
-        }
+        private bool SetValueByOffset(byte value, string offset) =>
+            WriteBytes(ParseOffset(offset), new[] { value }, 0, 1);
 
         private void UpdateShiningSaveState()
         {
+            if (!EnsureBufferLoaded())
+            {
+                return;   // no valid save state loaded
+            }
+
             EnsureBackup(saveStateFileTb.Text);
             ShiningCharacterItem charItem = shiningCharacterCmb.SelectedItem as ShiningCharacterItem;
             if (shiningNewGoldTb.Text != string.Empty)
@@ -3791,6 +3591,11 @@ namespace ShiningEditor
                 }
             }
 
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
+            }
+
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
             ResetShiningControls(false);
             PopulateShiningCurrentGold();
@@ -3809,6 +3614,11 @@ namespace ShiningEditor
 
         private void UpdateShiningForceSaveState()
         {
+            if (!EnsureBufferLoaded())
+            {
+                return;   // no valid save state loaded
+            }
+
             EnsureBackup(saveStateFileTb.Text);
             ShiningForceCharacterItem charItem = shiningForceCharacterCmb.SelectedItem as ShiningForceCharacterItem;
             if (shiningForceNewGoldTb.Text != string.Empty)
@@ -3944,6 +3754,11 @@ namespace ShiningEditor
                 }
             }
 
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
+            }
+
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
             ResetShiningForceControls(false);
             PopulateShiningForceCurrentGold();
@@ -3966,6 +3781,11 @@ namespace ShiningEditor
 
         private void UpdateShiningForce2SaveState()
         {
+            if (!EnsureBufferLoaded())
+            {
+                return;   // no valid save state loaded
+            }
+
             EnsureBackup(saveStateFileTb.Text);
             ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
             if (shiningForce2NewGoldTb.Text != string.Empty)
@@ -4153,6 +3973,11 @@ namespace ShiningEditor
                 }
             }
 
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
+            }
+
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
             ResetShiningForce2Controls(false);
             PopulateShiningForce2CurrentGold();
@@ -4293,8 +4118,12 @@ namespace ShiningEditor
 
             _sfcdClassTableLoadedFromPath = path;
 
-            // Read file once (it's ~1.1MB; totally fine)
-            byte[] all = File.ReadAllBytes(path);
+            // Read from the in-memory buffer (loaded once).
+            if (!EnsureBufferLoaded())
+            {
+                return;
+            }
+            byte[] all = _fileBytes;
 
             // Find the signature: 04 SDMN 04 HERO 04 KNTE 04 PLDN
             int start = FindClassTableOffsetBySignature(all);
@@ -4371,6 +4200,11 @@ namespace ShiningEditor
 
         private void UpdateShiningForceCDSaveState()
         {
+            if (!EnsureBufferLoaded())
+            {
+                return;   // no valid save state loaded
+            }
+
             EnsureBackup(saveStateFileTb.Text);
             ShiningForceCDCharacterItem charItem = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
 
@@ -4556,6 +4390,11 @@ namespace ShiningEditor
                         MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 }
+            }
+
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
