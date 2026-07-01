@@ -104,6 +104,77 @@ namespace ShiningEditor
             ActivePanel = AppPanel.None;
             ShowPanel(AppPanel.All, false);
             FileLoaded = false;
+            WireDigitOnlyInputs();
+            SetUpdateButtonsEnabled(false);   // nothing to update until a file is loaded
+        }
+
+        // ── Input safety helpers ─────────────────────────────────────────────
+        // Restrict every "New …" stat/gold field to digits, so a non-numeric value
+        // can't be typed in the first place.
+        private void WireDigitOnlyInputs()
+        {
+            foreach (TextBox tb in AllControls(this).OfType<TextBox>())
+            {
+                if (tb.Name.Contains("New") && tb.Name.EndsWith("Tb"))
+                {
+                    tb.KeyPress -= DigitsOnly_KeyPress;   // avoid double-wiring
+                    tb.KeyPress += DigitsOnly_KeyPress;
+                }
+            }
+        }
+
+        private static IEnumerable<Control> AllControls(Control root)
+        {
+            foreach (Control c in root.Controls)
+            {
+                yield return c;
+                foreach (Control d in AllControls(c))
+                {
+                    yield return d;
+                }
+            }
+        }
+
+        private void DigitsOnly_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // allow control chars (backspace, etc.) and digits only
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void SetUpdateButtonsEnabled(bool enabled)
+        {
+            updSaveStateBtn.Enabled = enabled;
+            updShiningForceSaveStateBtn.Enabled = enabled;
+            shiningForce2UpdateSaveStateBtn.Enabled = enabled;
+            shiningForceCDUpdateSaveStateBtn.Enabled = enabled;
+        }
+
+        /// <summary>
+        /// Reads a "New …" field. Blank = leave unchanged (returns false, no message).
+        /// A non-numeric or out-of-range entry shows one clear message and returns false,
+        /// so an over-large value can't silently truncate to the field's byte width.
+        /// </summary>
+        private bool TryReadField(TextBox tb, string label, long min, long max, out long value)
+        {
+            value = 0;
+            string text = tb.Text.Trim();
+            if (text.Length == 0)
+            {
+                return false;
+            }
+
+            if (!long.TryParse(text, out value) || value < min || value > max)
+            {
+                value = 0;
+                MessageBox.Show($"{label} must be a whole number from {min:N0} to {max:N0}.",
+                    "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            return true;
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -115,7 +186,8 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningInTheDarkness;
             saveStateFileTb.Text = string.Empty;
-            ResetShiningControls(true);
+            SetUpdateButtonsEnabled(false);
+            ResetShiningControls(true, true);
             PopulateShiningCharacterList();
             ShowPanel(AppPanel.ShiningInTheDarkness, true);
         }
@@ -124,6 +196,7 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningForce;
             saveStateFileTb.Text = string.Empty;
+            SetUpdateButtonsEnabled(false);
             ResetShiningForceControls(true);
             PopulateShiningForceCharacterList();
             ShowPanel(AppPanel.ShiningForce, true);
@@ -133,6 +206,7 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningForce2;
             saveStateFileTb.Text = string.Empty;
+            SetUpdateButtonsEnabled(false);
             ResetShiningForce2Controls(true);
             PopulateShiningForce2CharacterList();
             ShowPanel(AppPanel.ShiningForce2, true);
@@ -142,6 +216,7 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningForceCD;
             saveStateFileTb.Text = string.Empty;
+            SetUpdateButtonsEnabled(false);
             ResetShiningForceCDControls(true, true);            
             ShowPanel(AppPanel.ShiningForceCD, true);
         }
@@ -188,6 +263,7 @@ namespace ShiningEditor
                     saveStateFileTb.Text = openFD.FileName;
                     FileLoaded = true;
                     EnsureBufferLoaded();   // load the whole file into memory once
+                    SetUpdateButtonsEnabled(true);
                     switch (ActivePanel)
                     {
                         case AppPanel.ShiningInTheDarkness:
@@ -235,7 +311,7 @@ namespace ShiningEditor
             {
                 if (FileLoaded)
                 {
-                    ResetShiningControls(false);
+                    ResetShiningControls(false, false);
                     PopulateShiningCharacterDetails(shiningCharacterCmb.SelectedItem as ShiningCharacterItem);
                 }
                 else
@@ -376,15 +452,19 @@ namespace ShiningEditor
             control.Visible = show;
         }        
 
-        private void ResetShiningControls(bool resetCharacterList)
+        private void ResetShiningControls(bool resetCharacterList = false, bool resetGold = false)
         {
             if (resetCharacterList)
             {
                 shiningCharacterCmb.SelectedIndex = -1;
             }
 
-            shiningCurGoldTb.Text = string.Empty;
-            shiningNewGoldTb.Text = string.Empty;
+            if (resetGold)
+            {
+                shiningCurGoldTb.Text = string.Empty;
+                shiningNewGoldTb.Text = string.Empty;
+            }
+            
             shiningLevelTb.Text = string.Empty;
             shiningExpTb.Text = string.Empty;
             shiningNewExpTb.Text = string.Empty;
@@ -2598,121 +2678,49 @@ namespace ShiningEditor
 
             EnsureBackup(saveStateFileTb.Text);
             ShiningCharacterItem charItem = shiningCharacterCmb.SelectedItem as ShiningCharacterItem;
-            if (shiningNewGoldTb.Text != string.Empty)
+            if (TryReadField(shiningNewGoldTb, "Gold", 0, 4294967295, out long gold1))
             {
-                int gold = 0;
-                if (int.TryParse(shiningNewGoldTb.Text, out gold))
-                {
-                    SetValueByOffset(gold, SHINING_GOLD_LOC);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((int)gold1, SHINING_GOLD_LOC);
             }
 
-            if (shiningNewExpTb.Text != string.Empty)
+            if (TryReadField(shiningNewExpTb, "Experience", 0, 4294967295, out long exp2))
             {
-                int exp = 0;
-                if (int.TryParse(shiningNewExpTb.Text, out exp))
-                {
-                    SetValueByOffset(exp, charItem.ExpLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((int)exp2, charItem.ExpLoc);
             }
 
-            if (shiningNewCurHPTb.Text != string.Empty)
+            if (TryReadField(shiningNewCurHPTb, "Current HP", 0, 65535, out long hp3))
             {
-                short hp = 0;
-                if (short.TryParse(shiningNewCurHPTb.Text, out hp))
-                {
-                    SetValueByOffset(hp, charItem.CurHPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new current HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)hp3, charItem.CurHPLoc);
             }
 
-            if (shiningNewMaxHPTb.Text != string.Empty)
+            if (TryReadField(shiningNewMaxHPTb, "Max HP", 0, 65535, out long hp4))
             {
-                short hp = 0;
-                if (short.TryParse(shiningNewMaxHPTb.Text, out hp))
-                {
-                    SetValueByOffset(hp, charItem.MaxHPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)hp4, charItem.MaxHPLoc);
             }
 
-            if (shiningNewCurMPTb.Text != string.Empty)
+            if (TryReadField(shiningNewCurMPTb, "Current MP", 0, 65535, out long tp5))
             {
-                short tp = 0;
-                if (short.TryParse(shiningNewCurMPTb.Text, out tp))
-                {
-                    SetValueByOffset(tp, charItem.CurMPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new current MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)tp5, charItem.CurMPLoc);
             }
 
-            if (shiningNewMaxMPTb.Text != string.Empty)
+            if (TryReadField(shiningNewMaxMPTb, "Max MP", 0, 65535, out long tp6))
             {
-                short tp = 0;
-                if (short.TryParse(shiningNewMaxMPTb.Text, out tp))
-                {
-                    SetValueByOffset(tp, charItem.MaxMPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)tp6, charItem.MaxMPLoc);
             }
 
-            if (shiningNewIQTb.Text != string.Empty)
+            if (TryReadField(shiningNewIQTb, "IQ", 0, 65535, out long str7))
             {
-                short str = 0;
-                if (short.TryParse(shiningNewIQTb.Text, out str))
-                {
-                    SetValueByOffset(str, charItem.IQLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new IQ value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)str7, charItem.IQLoc);
             }
 
-            if (shiningNewLuckTb.Text != string.Empty)
+            if (TryReadField(shiningNewLuckTb, "Luck", 0, 65535, out long str8))
             {
-                short str = 0;
-                if (short.TryParse(shiningNewLuckTb.Text, out str))
-                {
-                    SetValueByOffset(str, charItem.LuckLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new luck value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)str8, charItem.LuckLoc);
             }
 
-            if (shiningNewAttackTb.Text != string.Empty)
+            if (TryReadField(shiningNewAttackTb, "Attack", 0, 65535, out long str9))
             {
-                short str = 0;
-                if (short.TryParse(shiningNewAttackTb.Text, out str))
-                {
-                    SetValueByOffset(str, charItem.AttackLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new attack value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)str9, charItem.AttackLoc);
             }
 
             if (!SaveBufferToDisk())
@@ -2721,7 +2729,7 @@ namespace ShiningEditor
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            ResetShiningControls(false);
+            ResetShiningControls(false, true);
             PopulateShiningCurrentGold();
             PopulateShiningCharacterDetails(charItem);
         }
@@ -2745,136 +2753,56 @@ namespace ShiningEditor
 
             EnsureBackup(saveStateFileTb.Text);
             ShiningForceCharacterItem charItem = shiningForceCharacterCmb.SelectedItem as ShiningForceCharacterItem;
-            if (shiningForceNewGoldTb.Text != string.Empty)
+            if (TryReadField(shiningForceNewGoldTb, "Gold", 0, 16777215, out long gold10))
             {
-                int gold = 0;
-                if (int.TryParse(shiningForceNewGoldTb.Text, out gold))
-                {
-                    SetValueByOffset(gold, SHINING_FORCE_GOLD_LOC, 3);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((int)gold10, SHINING_FORCE_GOLD_LOC, 3);
             }
 
             if (charItem != null)
             {
-                if (shiningForceNewAttackTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewAttackTb, "Attack", 0, 255, out long attack11))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForceNewAttackTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack11, charItem.AttackLoc, 1, 1);
                 }
 
-                if (shiningForceNewDefenseTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewDefenseTb, "Defense", 0, 255, out long defense12))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForceNewDefenseTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense12, charItem.DefenseLoc, 1, 1);
                 }
 
-                if (shiningForceNewAgilityTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewAgilityTb, "Agility", 0, 255, out long agility13))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForceNewAgilityTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility13, charItem.AgilityLoc, 1, 1);
                 }
 
-                if (shiningForceNewMoveTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewMoveTb, "Move", 0, 255, out long move14))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForceNewMoveTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move14, charItem.MoveLoc, 1, 1);
                 }
 
-                if (shiningForceNewExpTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewExpTb, "Experience", 0, 255, out long exp15))
                 {
-                    short exp = 0;
-                    if (short.TryParse(shiningForceNewExpTb.Text, out exp))
-                    {
-                        SetValueByOffset(exp, charItem.ExperienceLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)exp15, charItem.ExperienceLoc, 1, 1);
                 }
 
-                if (shiningForceNewCurHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewCurHPTb, "Current HP", 0, 255, out long hp16))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForceNewCurHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.CurrentHPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new current HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp16, charItem.CurrentHPLoc, 1, 1);
                 }
 
-                if (shiningForceNewMaxHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewMaxHPTb, "Max HP", 0, 255, out long maxHP17))
                 {
-                    short maxHP = 0;
-                    if (short.TryParse(shiningForceNewMaxHPTb.Text, out maxHP))
-                    {
-                        SetValueByOffset(maxHP, charItem.MaxHPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)maxHP17, charItem.MaxHPLoc, 1, 1);
                 }
 
-                if (shiningForceNewCurMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewCurMPTb, "Current MP", 0, 255, out long mp18))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForceNewCurMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.CurrentMPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new curent MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp18, charItem.CurrentMPLoc, 1, 1);
                 }
 
-                if (shiningForceNewMaxMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewMaxMPTb, "Max MP", 0, 255, out long maxMP19))
                 {
-                    short maxMP = 0;
-                    if (short.TryParse(shiningForceNewMaxMPTb.Text, out maxMP))
-                    {
-                        SetValueByOffset(maxMP, charItem.MaxMPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)maxMP19, charItem.MaxMPLoc, 1, 1);
                 }
             }
 
@@ -2912,188 +2840,76 @@ namespace ShiningEditor
 
             EnsureBackup(saveStateFileTb.Text);
             ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
-            if (shiningForce2NewGoldTb.Text != string.Empty)
+            if (TryReadField(shiningForce2NewGoldTb, "Gold", 0, 65535, out long gold20))
             {
-                ushort gold = 0;
-                if (ushort.TryParse(shiningForce2NewGoldTb.Text, out gold))
-                {
-                    SetValueByOffset(gold, SHINING_FORCE_2_GOLD_LOC, 0, 2);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value that doesn't exceed 65535.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((ushort)gold20, SHINING_FORCE_2_GOLD_LOC, 0, 2);
             }
 
             if (charItem != null)
             {
-                if (shiningForce2NewAttackBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAttackBaseTb, "Attack base", 0, 255, out long attack21))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForce2NewAttackBaseTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack21, charItem.AttackBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewAttackEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAttackEquipTb, "Attack equip", 0, 255, out long attack22))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForce2NewAttackEquipTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack22, charItem.AttackEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewDefenseBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewDefenseBaseTb, "Defense base", 0, 255, out long defense23))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForce2NewDefenseBaseTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense23, charItem.DefenseBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewDefenseEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewDefenseEquipTb, "Defense equip", 0, 255, out long defense24))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForce2NewDefenseEquipTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense24, charItem.DefenseEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewAgilityBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAgilityBaseTb, "Agility base", 0, 255, out long agility25))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForce2NewAgilityBaseTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility25, charItem.AgilityBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewAgilityEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAgilityEquipTb, "Agility equip", 0, 255, out long agility26))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForce2NewAgilityEquipTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility26, charItem.AgilityEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewMoveBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMoveBaseTb, "Move base", 0, 255, out long move27))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForce2NewMoveBaseTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move27, charItem.MoveBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewMoveEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMoveEquipTb, "Move equip", 0, 255, out long move28))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForce2NewMoveEquipTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move28, charItem.MoveEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewExpTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewExpTb, "Experience", 0, 255, out long exp29))
                 {
-                    short exp = 0;
-                    if (short.TryParse(shiningForce2NewExpTb.Text, out exp))
-                    {
-                        SetValueByOffset(exp, charItem.ExperienceOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)exp29, charItem.ExperienceOffset, 1, 1);
                 }
 
-                if (shiningForce2NewPresentHPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewPresentHPTb, "Present HP", 0, 65535, out long hp30))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForce2NewPresentHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.PresentHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp30, charItem.PresentHPOffset, 0, 0);
                 }
 
-                if (shiningForce2NewMaxHPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMaxHPTb, "Max HP", 0, 65535, out long hp31))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForce2NewMaxHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.MaximumHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp31, charItem.MaximumHPOffset, 0, 0);
                 }
 
-                if (shiningForce2NewPresentMPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewPresentMPTb, "Present MP", 0, 255, out long mp32))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForce2NewPresentMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.PresentMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp32, charItem.PresentMPOffset, 1, 1);
                 }
 
-                if (shiningForce2NewMaxMPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMaxMPTb, "Pmax MP", 0, 255, out long mp33))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForce2NewMaxMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.MaximumMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new pmax MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp33, charItem.MaximumMPOffset, 1, 1);
                 }
             }
 
@@ -3332,187 +3148,76 @@ namespace ShiningEditor
             EnsureBackup(saveStateFileTb.Text);
             ShiningForceCDCharacterItem charItem = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
 
-            if (!string.IsNullOrEmpty(shiningForceCDNewGoldTb.Text))
+            if (TryReadField(shiningForceCDNewGoldTb, "Gold", 0, 4294967295, out long newGold34))
             {
-                if (uint.TryParse(shiningForceCDNewGoldTb.Text, out var newGold))
-                {
-                    SetUInt32BigEndianByOffset(newGold, SHINING_FORCE_CD_GOLD_LOC);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetUInt32BigEndianByOffset((uint)newGold34, SHINING_FORCE_CD_GOLD_LOC);
             }
 
             if (charItem != null)
             {
-                if (shiningForceCDNewAttackBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAttackBaseTb, "Attack base", 0, 255, out long attack35))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForceCDNewAttackBaseTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack35, charItem.AttackBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewAttackEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAttackEquipTb, "Attack equip", 0, 255, out long attack36))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForceCDNewAttackEquipTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack36, charItem.AttackEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewDefenseBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewDefenseBaseTb, "Defense base", 0, 255, out long defense37))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForceCDNewDefenseBaseTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense37, charItem.DefenseBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewDefenseEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewDefenseEquipTb, "Defense equip", 0, 255, out long defense38))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForceCDNewDefenseEquipTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense38, charItem.DefenseEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewAgilityBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAgilityBaseTb, "Agility base", 0, 255, out long agility39))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForceCDNewAgilityBaseTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility39, charItem.AgilityBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewAgilityEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAgilityEquipTb, "Agility equip", 0, 255, out long agility40))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForceCDNewAgilityEquipTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility40, charItem.AgilityEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewMoveBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMoveBaseTb, "Move base", 0, 255, out long move41))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForceCDNewMoveBaseTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move41, charItem.MoveBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewMoveEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMoveEquipTb, "Move equip", 0, 255, out long move42))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForceCDNewMoveEquipTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move42, charItem.MoveEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewExperienceTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewExperienceTb, "Experience", 0, 255, out long exp43))
                 {
-                    short exp = 0;
-                    if (short.TryParse(shiningForceCDNewExperienceTb.Text, out exp))
-                    {
-                        SetValueByOffset(exp, charItem.ExperienceOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)exp43, charItem.ExperienceOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewPresentHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewPresentHPTb, "Present HP", 0, 65535, out long hp44))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForceCDNewPresentHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.PresentHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp44, charItem.PresentHPOffset, 0, 0);
                 }
 
-                if (shiningForceCDNewMaxHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMaxHPTb, "Max HP", 0, 65535, out long hp45))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForceCDNewMaxHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.MaximumHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp45, charItem.MaximumHPOffset, 0, 0);
                 }
 
-                if (shiningForceCDNewPresentMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewPresentMPTb, "Present MP", 0, 255, out long mp46))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForceCDNewPresentMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.PresentMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp46, charItem.PresentMPOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewMaxMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMaxMPTb, "Max MP", 0, 255, out long mp47))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForceCDNewMaxMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.MaximumMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp47, charItem.MaximumMPOffset, 1, 1);
                 }
             }
 
