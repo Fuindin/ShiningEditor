@@ -47,8 +47,19 @@ namespace ShiningEditor
 
         // One known good class-table start. If you later confirm a different offset for your format/version,
         // just change this constant.
-        private const int SfcdClassTableOffset = 0x0D76A0;        
-        
+        private const int SfcdClassTableOffset = 0x0D76A0;
+
+        // ── Save-state file validation / backup ──────────────────────────────
+        // Kega Fusion save states begin with the ASCII signature "GST". The RAM
+        // dump size distinguishes the console: Genesis (SID/SF/SF2) vs Sega CD (SFCD).
+        private static readonly byte[] GST_MAGIC = { 0x47, 0x53, 0x54 }; // "GST"
+        private const long GST_SIZE_GENESIS = 140408;
+        private const long GST_SIZE_SEGA_CD = 1120235;
+
+        // Files backed up (once) this session, so we don't re-snapshot on every edit.
+        private readonly HashSet<string> _backedUpThisSession =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         private AppPanel activePanel;
         private List<ShiningForceItem> shiningForceItemsList;
         private List<ShiningForceMagicItem> shiningForceMagicList;
@@ -163,6 +174,15 @@ namespace ShiningEditor
                 // Show the open file dialog and capture the selected file
                 if (openFD.ShowDialog() != DialogResult.Cancel)
                 {
+                    if (!ValidateSaveStateFile(openFD.FileName, out string validationError))
+                    {
+                        MessageBox.Show(validationError, "Invalid save state file",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        saveStateFileTb.Text = string.Empty;
+                        FileLoaded = false;
+                        return;
+                    }
+
                     saveStateFileTb.Text = openFD.FileName;
                     FileLoaded = true;
                     switch (ActivePanel)
@@ -3133,16 +3153,22 @@ namespace ShiningEditor
 
         private void LogError(string errMsg)
         {
-            // Create a write and open the file
-            string filePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-            filePath += @"\errorlog.txt";
-            TextWriter writer = new StreamWriter(filePath, true);
+            // Never let logging throw — it is called from catch blocks, so a failure
+            // here (e.g. a read-only install directory) must not crash the app.
+            try
+            {
+                string filePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                filePath += @"\errorlog.txt";
 
-            // Write the error message to the error log
-            writer.WriteLine(errMsg + " Added: " + DateTime.Now.ToString());
-
-            // Close the stream
-            writer.Close();
+                using (TextWriter writer = new StreamWriter(filePath, true))
+                {
+                    writer.WriteLine(errMsg + " Added: " + DateTime.Now.ToString());
+                }
+            }
+            catch
+            {
+                // Swallow: logging is best-effort.
+            }
         }
 
         private void ClearErrorLog()
@@ -3182,6 +3208,91 @@ namespace ShiningEditor
             _sfcdClassTable = null;
         }
 
+        /// <summary>
+        /// Validates that the chosen file is a Kega Fusion save state ("GST" header) of
+        /// the size expected for the selected game's console. This prevents editing the
+        /// wrong file at hardcoded offsets, which would silently corrupt a save.
+        /// </summary>
+        private bool ValidateSaveStateFile(string path, out string error)
+        {
+            error = null;
+
+            FileInfo info;
+            try
+            {
+                info = new FileInfo(path);
+            }
+            catch (Exception ex)
+            {
+                error = "The selected file could not be accessed: " + ex.Message;
+                return false;
+            }
+
+            if (!info.Exists)
+            {
+                error = "The selected file no longer exists.";
+                return false;
+            }
+
+            bool isSegaCd = ActivePanel == AppPanel.ShiningForceCD;
+            long expectedSize = isSegaCd ? GST_SIZE_SEGA_CD : GST_SIZE_GENESIS;
+            string console = isSegaCd ? "Sega CD" : "Genesis";
+
+            byte[] header = new byte[GST_MAGIC.Length];
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    fs.Read(header, 0, header.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                error = "The selected file could not be read: " + ex.Message;
+                return false;
+            }
+
+            if (!header.SequenceEqual(GST_MAGIC))
+            {
+                error = "This is not a Kega Fusion save state (its header is missing the \"GST\" signature).";
+                return false;
+            }
+
+            if (info.Length != expectedSize)
+            {
+                error = $"This does not look like a {console} save state for {GetSelectedGameTitle()}." +
+                        $"{Environment.NewLine}{Environment.NewLine}" +
+                        $"Expected size: {expectedSize:N0} bytes{Environment.NewLine}" +
+                        $"Selected file: {info.Length:N0} bytes{Environment.NewLine}{Environment.NewLine}" +
+                        "Make sure you picked the correct save state for this game.";
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Copies the save state to "&lt;path&gt;.bak" once per session before the first
+        /// edit, so the pre-edit state can always be recovered.
+        /// </summary>
+        private void EnsureBackup(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path) || _backedUpThisSession.Contains(path))
+                {
+                    return;
+                }
+
+                File.Copy(path, path + ".bak", true);
+                _backedUpThisSession.Add(path);
+            }
+            catch (Exception ex)
+            {
+                LogError(ex.Message + " Occurred while creating a backup (.bak) of the save state file.");
+            }
+        }
+
         private string GetValueByOffset(string offset, int bytesToRead)
         {
             string value = string.Empty;
@@ -3189,7 +3300,9 @@ namespace ShiningEditor
 
             try
             {
-                reader = new BinaryReader(new FileStream(saveStateFileTb.Text, FileMode.Open));
+                // Open read-only with sharing so a read never needs write access and
+                // won't fail if the emulator still holds the file.
+                reader = new BinaryReader(new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
                 // Set the position of the reader by the offset
                 reader.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
                 // Read the offset
@@ -3209,8 +3322,9 @@ namespace ShiningEditor
             }
             finally
             {
-                reader.Close();
-                reader.Dispose();
+                // reader is null if the FileStream constructor threw — guard against
+                // a NullReferenceException that would mask the real error.
+                reader?.Dispose();
             }
 
             return value;
@@ -3556,6 +3670,7 @@ namespace ShiningEditor
 
         private void UpdateShiningSaveState()
         {
+            EnsureBackup(saveStateFileTb.Text);
             ShiningCharacterItem charItem = shiningCharacterCmb.SelectedItem as ShiningCharacterItem;
             if (shiningNewGoldTb.Text != string.Empty)
             {
@@ -3692,6 +3807,7 @@ namespace ShiningEditor
 
         private void UpdateShiningForceSaveState()
         {
+            EnsureBackup(saveStateFileTb.Text);
             ShiningForceCharacterItem charItem = shiningForceCharacterCmb.SelectedItem as ShiningForceCharacterItem;
             if (shiningForceNewGoldTb.Text != string.Empty)
             {
@@ -3848,6 +3964,7 @@ namespace ShiningEditor
 
         private void UpdateShiningForce2SaveState()
         {
+            EnsureBackup(saveStateFileTb.Text);
             ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
             if (shiningForce2NewGoldTb.Text != string.Empty)
             {
@@ -4252,6 +4369,7 @@ namespace ShiningEditor
 
         private void UpdateShiningForceCDSaveState()
         {
+            EnsureBackup(saveStateFileTb.Text);
             ShiningForceCDCharacterItem charItem = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
 
             if (!string.IsNullOrEmpty(shiningForceCDNewGoldTb.Text))

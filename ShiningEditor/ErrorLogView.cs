@@ -64,8 +64,9 @@ namespace ShiningEditor
                 }
                 finally
                 {
-                    // Close the stream
-                    reader.Close();
+                    // reader is null if the StreamReader constructor threw — guard
+                    // against a NullReferenceException that would mask the real error.
+                    reader?.Dispose();
                 }
             }
 
