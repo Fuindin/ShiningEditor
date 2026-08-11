@@ -2988,10 +2988,11 @@ namespace ShiningEditor
 
                 Hex(baseOffset + 0x26), // ExperienceOffset (1 byte)
 
-                Hex(baseOffset + 0x02), // PresentHPOffset (2 bytes)
-                Hex(baseOffset + 0x04), // MaximumHPOffset (2 bytes)
-                Hex(baseOffset + 0x06), // PresentMPOffset (1 byte)
-                Hex(baseOffset + 0x07), // MaximumMPOffset (1 byte)
+                // Max comes first in the record, then present - same ordering as Shining Force 2.
+                Hex(baseOffset + 0x04), // PresentHPOffset (2 bytes)
+                Hex(baseOffset + 0x02), // MaximumHPOffset (2 bytes)
+                Hex(baseOffset + 0x07), // PresentMPOffset (1 byte)
+                Hex(baseOffset + 0x06), // MaximumMPOffset (1 byte)
 
                 // ITEMS: skip the first pair at base+0x14..0x15
                 // real 4 inventory slots are the next 4 ID bytes:
