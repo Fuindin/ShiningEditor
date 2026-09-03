@@ -2506,6 +2506,8 @@ namespace ShiningEditor
         // write (instead of re-opening the file for every field).
         private byte[] _fileBytes;
         private string _loadedPath;
+        private long _loadedLength;
+        private DateTime _loadedWriteTime;
 
         private static int ParseOffset(string offset) =>
             int.Parse(offset, System.Globalization.NumberStyles.HexNumber);
@@ -2519,15 +2521,26 @@ namespace ShiningEditor
                 return false;
             }
 
-            if (_fileBytes != null && string.Equals(_loadedPath, path, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
             try
             {
+                var info = new FileInfo(path);
+
+                // Re-read when the path changes, and also when the file's size or
+                // timestamp has moved underneath us. The emulator may write a new save
+                // state to the same path while this window sits open, and flushing a
+                // stale buffer over it would silently discard that save.
+                if (_fileBytes != null
+                    && string.Equals(_loadedPath, path, StringComparison.OrdinalIgnoreCase)
+                    && _loadedLength == info.Length
+                    && _loadedWriteTime == info.LastWriteTimeUtc)
+                {
+                    return true;
+                }
+
                 _fileBytes = File.ReadAllBytes(path);
                 _loadedPath = path;
+                _loadedLength = info.Length;
+                _loadedWriteTime = info.LastWriteTimeUtc;
                 return true;
             }
             catch (Exception e)
@@ -2550,6 +2563,12 @@ namespace ShiningEditor
             try
             {
                 File.WriteAllBytes(_loadedPath, _fileBytes);
+
+                // Adopt the timestamp we just created, so the staleness check in
+                // EnsureBufferLoaded does not mistake our own write for someone else's.
+                var info = new FileInfo(_loadedPath);
+                _loadedLength = info.Length;
+                _loadedWriteTime = info.LastWriteTimeUtc;
                 return true;
             }
             catch (Exception e)
