@@ -1,22 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+namespace ShiningEditor;
 
-namespace ShiningEditor
+internal static class Program
 {
-    static class Program
+    /// <summary>The main entry point for the application.</summary>
+    [STAThread]
+    static void Main()
     {
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        [STAThread]
-        static void Main()
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
-        }
+        ApplicationConfiguration.Initialize();
+
+        // Log any unhandled exception so failures are diagnosable instead of a silent crash.
+        Application.ThreadException += (_, e) => Game.Log.Write("Unhandled: " + e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Game.Log.Write("Unhandled: " + (e.ExceptionObject?.ToString() ?? "unknown"));
+
+        Application.Run(new MainForm());
     }
 }

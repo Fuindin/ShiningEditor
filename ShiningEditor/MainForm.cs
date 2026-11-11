@@ -1,49 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Windows.Forms;
+using System.Drawing.Drawing2D;
+using System.Reflection;
+using ShiningEditor.Game;
 
-namespace ShiningEditor
+namespace ShiningEditor;
+
+public sealed partial class MainForm : Form
 {
-    public partial class MainForm : Form
-    {
-        #region - Enums -
-        public enum AppPanel
-        {
-            All,
-            ShiningInTheDarkness,
-            ShiningForce,
-            ShiningForce2,
-            ShiningForceCD,
-            None
-        }
+    private GameDefinition _game = Games.All[1];      // Shining Force by default
+    private SaveState? _save;
+    private readonly List<CharacterDef> _chars = new();
+    private readonly Dictionary<string, Control> _fieldEditors = new();
+    private readonly Dictionary<string, Label> _fieldHints = new();
+    private readonly ToolTip _tips = new() { AutoPopDelay = 8000, InitialDelay = 400 };
 
-        public enum ShiningForceCDBook
-        {
-            Book1TowardsTheRootOfEvil,
-            Book2TheEvilGodAwakes,
-            Book3ANewChallenge,
-            Book4TheLastBattle,
-            UnknownBook
-        }
-        #endregion
-
-        #region - Class Fields -
-        private bool fileLoaded;
-        private const string SHINING_GOLD_LOC = "3B1C";
-        private const string SHINING_FORCE_GOLD_LOC = "C107";
-        private const string SHINING_FORCE_2_GOLD_LOC = "11A7A";
-        private const string SHINING_FORCE_CD_GOLD_LOC = "0E078";
-        private const string SHINING_FORCE_CD_BOOK_INDEX_OFFSET = "E0E1";
-        private const int SfcdCharTableBase = 0xD522;
-        private const int SfcdCharSlotSize = 0x38;
-        private const int SfcdNameOffset = 0x2E; // inside slot record
-        private const int SfcdNameLength = 0x0A; // 10 bytes
-        private const int SFCD_PLAYER_NAME_OFFSET = 0x0D518;
-        private const int SFCD_PLAYER_NAME_LENGTH = 10;
-        private const int SfcdClassIdOffset = 0x00;
+    // Unsaved edits: character names (plus "Gold") changed since the last save.
+    // Edits are written straight into the in-memory save, so switching between
+    // characters never loses them — Save writes all of them in one go.
+    private readonly HashSet<string> _edited = new(StringComparer.Ordinal);
+    private const string GoldKey = "\u0001gold";
 
         // One known good class-table start. If you later confirm a different offset for your format/version,
         // just change this constant.
@@ -78,12 +52,14 @@ namespace ShiningEditor
         }
         #endregion
 
-        #region - Class Constructor -
-        public MainForm()
-        {
-            InitializeComponent();
-        }
-        #endregion
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+
+        // Size the window here, after WinForms has applied DPI auto-scaling.
+        FitToScreen();
+        CenterToScreen();
+    }
 
         #region - Event Handlers -
         private void MainForm_Load(object sender, EventArgs e)
@@ -133,32 +109,29 @@ namespace ShiningEditor
             ShowPanel(AppPanel.ShiningForceCD, true);
         }
 
-        private void viewErrorLogToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            ErrorLogView errLogView = new ErrorLogView();
-            errLogView.ShowDialog();
-        }
+    // ---- Theme ------------------------------------------------------------------
 
-        private void clearErrorLogToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            ClearErrorLog();
-        }
+    private void ApplyTheme()
+    {
+        BackColor = Theme.Void;
+        ForeColor = Theme.Text;
+        Font = Theme.Body(9.75f);
 
-        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            AboutForm aboutForm = new AboutForm();
-            aboutForm.ShowDialog();
-        }
+        _menu.Renderer = new ToolStripProfessionalRenderer(new ShiningMenuColors()) { RoundedEdges = false };
+        _menu.BackColor = Theme.Void;
+        _menu.Font = Theme.Body(9.75f);
+        StyleMenuItems(_menu.Items);
 
-        private void browseBtn_Click(object sender, EventArgs e)
+        _header.BackColor = Theme.Window;
+        _header.Paint += (_, e) =>
         {
-            string game = GetSelectedGameTitle();
-            if (game != string.Empty)
-            {
-                // Set the open file dialog properties
-                openFD.Title = $"Select a {game} save state file";
-                openFD.InitialDirectory = System.Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-                openFD.FileName = "";
+            // Silver rule along the bottom edge, like the frame under a Shining message window.
+            using var pen = new Pen(Theme.Steel, 2);
+            e.Graphics.DrawLine(pen, 0, _header.Height - 1, _header.Width, _header.Height - 1);
+        };
+        _lblFile.ForeColor = Theme.Text;
+        _lblInfo.ForeColor = Theme.TextMuted;
+        _lblFile.BackColor = _lblInfo.BackColor = Color.Transparent;
 
                 // Show the open file dialog and capture the selected file
                 if (openFD.ShowDialog() != DialogResult.Cancel)
@@ -171,40 +144,24 @@ namespace ShiningEditor
                             PopulateShiningCurrentGold();
                             break;
 
-                        case AppPanel.ShiningForce:
-                            PopulateShiningForceCurrentGold();
-                            PopulateShiningForceItemsList();
-                            PopulateShiningForceMagicList();
-                            break;
+        _lblBanner.Font = Theme.Body(9.5f, FontStyle.Bold);
 
-                        case AppPanel.ShiningForce2:
-                            PopulateShiningForce2CurrentGold();
-                            PopulateShiningForce2ItemsList();
-                            PopulateShiningForce2MagicList();
-                            break;
+        _leftPanel.BackColor = Theme.Window;
+        StyleHeader(_lblParty);
+        _lstChars.BackColor = Theme.Window;
+        _lstChars.ForeColor = Theme.Text;
+        _lstChars.Font = Theme.Body(12f, FontStyle.Bold);
 
-                        case AppPanel.ShiningForceCD:
-                            ResetSfcdCaches();
-                            DetermineShiningForceCDCurrentBook();
-                            shiningForceCDCurrentBookTb.Text = GetShiningForceCDCurrentBookString();
+        _divider.BackColor = Theme.Steel;
 
-                            PopulateShiningForceCDCurrentGold();                            
-                            PopulateShiningForceCDItemsList(_shiningForceCDBook);
-                            PopulateShiningForceCDMagicList();
-                            PopulateShiningForceCDCharacterList(false);
-                            break;
-                    }
-                }
-                else
-                {
-                    saveStateFileTb.Text = string.Empty;
-                }
-            }
-            else
-            {
-                MessageBox.Show("You must first select a game from the menu so the correct game data is loaded.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
+        _coverPanel.BackColor = Theme.Window;
+        _picCover.BackColor = Theme.Void;
+        _coverPanel.Paint += PaintCoverPanel;
+        _coverPanel.Resize += (_, _) =>
+        {
+            SizeCover();
+            _coverPanel.Invalidate();
+        };
 
         private void shiningCharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -222,136 +179,80 @@ namespace ShiningEditor
             }
         }
 
-        private void shiningForceCharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
+        _tabs.Font = Theme.Body(10f, FontStyle.Bold);
+        foreach (var page in new[] { _tabStatus, _tabItems, _tabMagic })
         {
-            if (shiningForceCharacterCmb.SelectedIndex >= 0)
+            page.BackColor = Theme.WindowHi;
+        }
+
+        _tabStatus.Resize += (_, _) => FitFieldTable();
+
+        _fieldTable.BackColor = Theme.WindowHi;
+        foreach (var l in new[] { _lblItemsHdr, _lblMagicHdr })
+        {
+            StyleHeader(l);
+            l.BackColor = Theme.WindowHi;
+        }
+
+        foreach (var l in new[] { _itemsNote, _magicNote })
+        {
+            l.BackColor = Theme.WindowHi;
+            l.ForeColor = Theme.TextMuted;
+            l.Font = Theme.Body(8.5f, FontStyle.Italic);
+        }
+
+        foreach (var lb in new[] { _itemList, _spellList })
+        {
+            lb.BackColor = Theme.Window;
+            lb.ForeColor = Theme.Text;
+            lb.Font = Theme.Body(11f);
+        }
+
+        ApplyAccent();
+    }
+
+    /// <summary>Re-colours the parts that follow the current game's accent.</summary>
+    private void ApplyAccent()
+    {
+        Theme.StyleButton(_btnOpen);
+        Theme.StyleButton(_btnSave);
+        _btnSave.BackColor = Theme.GoldDeep;
+        _btnSave.FlatAppearance.MouseOverBackColor = Color.FromArgb(0xD0, 0x98, 0x20);
+        _btnSave.FlatAppearance.BorderColor = Theme.Gold;
+
+        _lblTitle.Invalidate();
+        _namePlate.Invalidate();
+        _coverPanel.Invalidate();
+        _lstChars.Invalidate();
+        _tabs.Invalidate();
+    }
+
+    private static void StyleMenuItems(ToolStripItemCollection items)
+    {
+        foreach (ToolStripItem item in items)
+        {
+            item.ForeColor = Theme.Text;
+            if (item is ToolStripMenuItem mi && mi.HasDropDownItems)
             {
-                if (FileLoaded)
-                {
-                    PopulateShiningForceCharacterDetails(shiningForceCharacterCmb.SelectedItem as ShiningForceCharacterItem);
-                }
-                else
-                {
-                    MessageBox.Show("You must load a save state file before you can view character data.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                StyleMenuItems(mi.DropDownItems);
             }
         }
+    }
 
-        private void shiningForce2CharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (shiningForce2CharacterCmb.SelectedIndex >= 0)
-            {
-                if (FileLoaded)
-                {
-                    PopulateShiningForce2CharacterDetails(shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem);
-                }
-                else
-                {
-                    MessageBox.Show("You must load a save state file before you can view character data.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
-        }
+    private static void StyleHeader(Label l)
+    {
+        l.ForeColor = Theme.Gold;
+        l.BackColor = Color.Transparent;
+        l.Font = Theme.Body(12f, FontStyle.Bold | FontStyle.Italic);
+        l.Padding = new Padding(2, 4, 0, 0);
+    }
 
-        private void shiningForceCDSelectCharacterCmb_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (shiningForceCDSelectCharacterCmb.SelectedIndex >= 0)
-            {
-                if (FileLoaded)
-                {
-                    ShiningForceCDCharacterItem selectedCharacter = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
-                    if (selectedCharacter == null)
-                    {
-                        return;
-                    }
-
-                    PopulateShiningForceCDCharacterDetails(selectedCharacter);
-                }
-                else
-                {
-                    MessageBox.Show("You must load a save state file before you can view character data.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
-        }
-
-        private void updSaveStateBtn_Click(object sender, EventArgs e)
-        {
-            UpdateShiningSaveState();
-        }
-
-        private void updShiningForceSaveStateBtn_Click(object sender, EventArgs e)
-        {
-            UpdateShiningForceSaveState();
-        }
-
-        private void shiningForce2UpdateSaveStateBtn_Click(object sender, EventArgs e)
-        {
-            UpdateShiningForce2SaveState();
-        }
-
-        private void shiningForceCDUpdateSaveStateBtn_Click(object sender, EventArgs e)
-        {
-            UpdateShiningForceCDSaveState();
-        }
-        #endregion
-
-        #region - Private Methods -
-        private void ShowPanel(AppPanel panel, bool show)
-        {
-            switch (panel)
-            {
-                case AppPanel.All:
-                    shiningPanel.Visible = show;
-                    shiningForcePanel.Visible = show;
-                    shiningForce2Panel.Visible = show;
-                    shiningForceCDPanel.Visible = show;
-                    break;
-
-                case AppPanel.ShiningInTheDarkness:
-                    shiningPanel.Visible = show;
-                    if (show)
-                    {
-                        shiningForcePanel.Visible = !show;
-                        shiningForce2Panel.Visible = !show;
-                        shiningForceCDPanel.Visible = !show;
-                    }
-                    break;
-
-                case AppPanel.ShiningForce:
-                    shiningForcePanel.Visible = show;
-                    if (show)
-                    {
-                        shiningPanel.Visible = !show;
-                        shiningForce2Panel.Visible = !show;
-                        shiningForceCDPanel.Visible = !show;
-                    }
-                    break;
-
-                case AppPanel.ShiningForce2:
-                    shiningForce2Panel.Visible = show;
-                    if (show)
-                    {
-                        shiningPanel.Visible = !show;
-                        shiningForcePanel.Visible = !show;
-                        shiningForceCDPanel.Visible = !show;
-                    }
-                    break;
-
-                case AppPanel.ShiningForceCD:
-                    shiningForceCDPanel.Visible = show;
-                    if (show)
-                    {
-                        shiningPanel.Visible = !show;
-                        shiningForcePanel.Visible = !show;
-                        shiningForce2Panel.Visible = !show;
-                    }
-                    break;
-            }
-        }
-
-        private void ShowControl(TextBox control, bool show)
-        {
-            control.Visible = show;
-        }        
+    private static void StyleNumeric(NumericUpDown n)
+    {
+        n.BorderStyle = BorderStyle.FixedSingle;
+        n.BackColor = Theme.Field;
+        n.ForeColor = Theme.Text;
+    }
 
         private void ResetShiningControls(bool resetCharacterList)
         {
@@ -385,156 +286,52 @@ namespace ShiningEditor
 
         private void PopulateShiningCharacterList()
         {
-            shiningCharacterCmb.Items.Clear();
-
-            ShiningCharacterItem hiroItem = new ShiningCharacterItem("Hiro",
-                "3B50",
-                "3B56",
-                "3B20",
-                "3B2C",
-                "3B26",
-                "3B32",
-                "3B4A",
-                "398A",
-                "3990",
-                "3B38",
-                "3978");
-            shiningCharacterCmb.Items.Add(hiroItem);
-
-            ShiningCharacterItem miloItem = new ShiningCharacterItem("Milo",
-                "3B52",
-                "3B5A",
-                "3B22",
-                "3B2E",
-                "3B28",
-                "3B34",
-                "3B4C",
-                "398C",
-                "3992",
-                "3B3A",
-                "397A");
-            shiningCharacterCmb.Items.Add(miloItem);
-
-            ShiningCharacterItem pyraItem = new ShiningCharacterItem("Pyra",
-                "3B54",
-                "3B5E",
-                "3B24",
-                "3B30",
-                "3B2A",
-                "3B36",
-                "3B4E",
-                "398E",
-                "3994",
-                "3B3C",
-                "397C");
-            shiningCharacterCmb.Items.Add(pyraItem);
-
-            shiningCharacterCmb.DisplayMember = "Name";
+            var item = new ToolStripMenuItem(g.MenuText) { Tag = g, ForeColor = Theme.Text };
+            item.Click += (_, _) => SelectGame(g);
+            _mnuGame.DropDownItems.Add(item);
+            _cboGame.Items.Add(g.Title);
         }
+    }
 
-        private string GetSelectedGameTitle()
+    private void WireEvents()
+    {
+        _mnuOpen.Click += (_, _) => OpenFile();
+        _btnOpen.Click += (_, _) => OpenFile();
+        _mnuSave.Click += (_, _) => SaveFile();
+        _btnSave.Click += (_, _) => SaveFile();
+        _mnuReload.Click += (_, _) => ReloadFromDisk();
+        _mnuExit.Click += (_, _) => Close();
+        _mnuInstructions.Click += (_, _) => ShowInstructions();
+        _mnuViewLog.Click += (_, _) =>
         {
-            string game = string.Empty;
-            switch (ActivePanel)
+            using var view = new ErrorLogView();
+            view.ShowDialog(this);
+        };
+        _mnuClearLog.Click += (_, _) => ClearErrorLog();
+        _mnuAbout.Click += (_, _) =>
+        {
+            using var about = new AboutForm();
+            about.ShowDialog(this);
+        };
+
+        _cboGame.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_switchingGame && _cboGame.SelectedIndex >= 0)
             {
-                case AppPanel.ShiningInTheDarkness:
-                    game = "Shining in the Darkness";
-                    break;
+                SelectGame(Games.All[_cboGame.SelectedIndex]);
+            }
+        };
 
-                case AppPanel.ShiningForce:
-                    game = "Shining Force";
-                    break;
-
-                case AppPanel.ShiningForce2:
-                    game = "Shining Force 2";
-                    break;
-
-                case AppPanel.ShiningForceCD:
-                    game = "Shining Force CD";
-                    break;
+        _numGold.ValueChanged += (_, _) =>
+        {
+            if (_loading || _save is null)
+            {
+                return;
             }
 
-            return game;
-        }
-
-        private string GetShiningCurrentGold()
-        {
-            string hexVal = GetValueByOffset(SHINING_GOLD_LOC, 4);
-            long gold = long.Parse(hexVal, System.Globalization.NumberStyles.HexNumber);
-            return gold.ToString();
-        }
-
-        private void PopulateShiningCurrentGold()
-        {
-            shiningCurGoldTb.Text = GetShiningCurrentGold();
-        }
-
-        private void PopulateShiningCharacterDetails(ShiningCharacterItem charItem)
-        {
-            string value = GetValueByOffset(charItem.LevelLoc, 2);
-            long val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningLevelTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.ExpLoc, 4);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningExpTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.CurHPLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningCurHPTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.MaxHPLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningMaxHPTb.Text = val.ToString();
-
-            if (charItem.Name != "Hiro")
+            if (_save.Write(_game.GoldOffset, _game.GoldWidth, (long)_numGold.Value))
             {
-                ShowControl(shiningNewCurMPTb, true);
-                ShowControl(shiningNewMaxMPTb, true);
-                value = GetValueByOffset(charItem.CurMPLoc, 2);
-                val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-                shiningCurMPTb.Text = val.ToString();
-                value = GetValueByOffset(charItem.MaxMPLoc, 2);
-                val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-                shiningMaxMPTb.Text = val.ToString();
-            }
-            else
-            {
-                ShowControl(shiningNewCurMPTb, false);
-                ShowControl(shiningNewMaxMPTb, false);
-            }
-
-            value = GetValueByOffset(charItem.IQLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningIQTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.SpeedLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningSpeedTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.LuckLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningLuckTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.AttackLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningAttackTb.Text = val.ToString();
-            value = GetValueByOffset(charItem.DefLoc, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningDefTb.Text = val.ToString();
-        }
-
-        private string GetShiningForceCurrentGold()
-        {
-            string hexVal = GetValueByOffset(SHINING_FORCE_GOLD_LOC, 3);
-            long gold = long.Parse(hexVal, System.Globalization.NumberStyles.HexNumber);
-            return gold.ToString();
-        }
-
-        private void PopulateShiningForceCurrentGold()
-        {
-            shiningForceCurGoldTb.Text = GetShiningForceCurrentGold();
-        }
-
-        private void ResetShiningForceControls(bool resetCharacterList)
-        {
-            if (resetCharacterList)
-            {
-                shiningForceCharacterCmb.SelectedIndex = -1;
+                MarkEdited(GoldKey);
             }
 
             shiningForceNewGoldTb.Text = "";
@@ -1078,636 +875,41 @@ namespace ShiningEditor
             shiningForceCharacterCmb.DisplayMember = "Name";
         }
 
-        private void PopulateShiningForceItemsList()
+        DragEnter += (_, e) =>
         {
-            shiningForceItemsList = new List<ShiningForceItem>();
-            shiningForceItemsList.Add(new ShiningForceItem("Medical Herb", "00"));
-            shiningForceItemsList.Add(new ShiningForceItem("Healing Seed", "01"));
-            shiningForceItemsList.Add(new ShiningForceItem("Antidote", "02"));
-            shiningForceItemsList.Add(new ShiningForceItem("Show of Cure", "03"));
-            shiningForceItemsList.Add(new ShiningForceItem("Angel Wing", "04"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Potion", "05"));
-            shiningForceItemsList.Add(new ShiningForceItem("Defense Potion", "06"));
-            shiningForceItemsList.Add(new ShiningForceItem("Legs of Haste", "07"));
-            shiningForceItemsList.Add(new ShiningForceItem("Turbo Pepper", "08"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bread of Life", "09"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Ring", "0A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Shield Ring", "0B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Speed Ring", "0C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Mobility Ring", "0D"));
-            shiningForceItemsList.Add(new ShiningForceItem("White Ring", "0E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Black Ring", "0F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Evil Ring", "10"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sugoi Mizugi", "11"));
-            shiningForceItemsList.Add(new ShiningForceItem("Orb of Light", "12"));
-            shiningForceItemsList.Add(new ShiningForceItem("Moon Stone", "13"));
-            shiningForceItemsList.Add(new ShiningForceItem("Lunar Dew", "14"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kutui Huku", "15"));
-            shiningForceItemsList.Add(new ShiningForceItem("Domingo Egg", "16"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kenji", "17"));
-            shiningForceItemsList.Add(new ShiningForceItem("Teppou", "18"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kaku-Chan", "19"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yougi", "1A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Great Axe", "1B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kinden No Hako", "1C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Short Sword", "1D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Sword", "1E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Long Sword", "1F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Sword", "20"));
-            shiningForceItemsList.Add(new ShiningForceItem("Broad Sword", "21"));
-            shiningForceItemsList.Add(new ShiningForceItem("Doom Blade", "22"));
-            shiningForceItemsList.Add(new ShiningForceItem("Katana", "23"));
-            shiningForceItemsList.Add(new ShiningForceItem("Elven Arrow", "24"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Darkness", "25"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Light", "26"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chaos Breaker", "27"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bronze Lance", "28"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Lance", "29"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chrome Lance", "2A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Devil Lance", "2B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Halberd", "2C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Spear", "2D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Spear", "2E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Valkyrie", "2F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Hand Axe", "30"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Axe", "31"));
-            shiningForceItemsList.Add(new ShiningForceItem("Battle Axe", "32"));
-            shiningForceItemsList.Add(new ShiningForceItem("Heat Axe", "33"));
-            shiningForceItemsList.Add(new ShiningForceItem("Atlas", "34"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Staff", "35"));
-            shiningForceItemsList.Add(new ShiningForceItem("Guardian Staff", "36"));
-            shiningForceItemsList.Add(new ShiningForceItem("Holy Staff", "37"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Staff", "38"));
-            shiningForceItemsList.Add(new ShiningForceItem("Demon Rod", "39"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yogurt Ring", "3A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Arrow", "3B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Arrow", "3C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Assault Shell", "3D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Buster Shot", "3E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Dummy", "3F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Medical Herb", "40"));
-            shiningForceItemsList.Add(new ShiningForceItem("Healing Seed", "41"));
-            shiningForceItemsList.Add(new ShiningForceItem("Antidote", "42"));
-            shiningForceItemsList.Add(new ShiningForceItem("Shower of Cure", "43"));
-            shiningForceItemsList.Add(new ShiningForceItem("Angel Wing", "44"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Potion", "45"));
-            shiningForceItemsList.Add(new ShiningForceItem("Defense Potion", "46"));
-            shiningForceItemsList.Add(new ShiningForceItem("Legs of Haste", "47"));
-            shiningForceItemsList.Add(new ShiningForceItem("Turbo Pepper", "48"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bread of Life", "49"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Ring", "4A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Shield Ring", "4B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Speed Ring", "4C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Mobility Ring", "4D"));
-            shiningForceItemsList.Add(new ShiningForceItem("White Ring", "4E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Black Ring", "4F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Evil Ring", "50"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sugoi Muzugi", "51"));
-            shiningForceItemsList.Add(new ShiningForceItem("Orb of Light", "52"));
-            shiningForceItemsList.Add(new ShiningForceItem("Moon Stone", "53"));
-            shiningForceItemsList.Add(new ShiningForceItem("Lunar Dew", "54"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kitui Huku", "55"));
-            shiningForceItemsList.Add(new ShiningForceItem("Domingo Egg", "56"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kenji", "57"));
-            shiningForceItemsList.Add(new ShiningForceItem("Teppou", "58"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kaku-Chan", "59"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yougi", "5A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Great Axe", "5B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kindan No Hako", "5C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Short Sword", "5D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Sword", "5E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Long Sword", "5F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Sword", "60"));
-            shiningForceItemsList.Add(new ShiningForceItem("Broad Sword", "61"));
-            shiningForceItemsList.Add(new ShiningForceItem("Doom Blade", "62"));
-            shiningForceItemsList.Add(new ShiningForceItem("Katana", "63"));
-            shiningForceItemsList.Add(new ShiningForceItem("Elven Arrow", "64"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Darkness", "65"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Light", "66"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chaos Breaker", "67"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bronze Lance", "68"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Lance", "69"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chrome Lance", "6A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Devil Lance", "6B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Halberd", "6C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Spear", "6D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Spear", "6E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Valkyrie", "6F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Hand Axe", "70"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Axe", "71"));
-            shiningForceItemsList.Add(new ShiningForceItem("Battle Axe", "72"));
-            shiningForceItemsList.Add(new ShiningForceItem("Heat Axe", "73"));
-            shiningForceItemsList.Add(new ShiningForceItem("Atlas", "74"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Staff", "75"));
-            shiningForceItemsList.Add(new ShiningForceItem("Guardian Staff", "76"));
-            shiningForceItemsList.Add(new ShiningForceItem("Holy Staff", "77"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Staff", "78"));
-            shiningForceItemsList.Add(new ShiningForceItem("Demon Rod", "79"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yogurt Ring", "7A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Arrow", "7B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Arrow", "7C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Assault Shell", "7D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Buster Shot", "7E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Dummy", "7F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Medical Herb", "80"));
-            shiningForceItemsList.Add(new ShiningForceItem("Healing Seed", "81"));
-            shiningForceItemsList.Add(new ShiningForceItem("Antidote", "82"));
-            shiningForceItemsList.Add(new ShiningForceItem("Show of Cure", "83"));
-            shiningForceItemsList.Add(new ShiningForceItem("Angel Wing", "84"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Potion", "85"));
-            shiningForceItemsList.Add(new ShiningForceItem("Defense Potion", "86"));
-            shiningForceItemsList.Add(new ShiningForceItem("Legs of Haste", "87"));
-            shiningForceItemsList.Add(new ShiningForceItem("Turbo Pepper", "88"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bread of Life", "89"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Ring", "8A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Shield Ring", "8B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Speed Ring", "8C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Mobility Ring", "8D"));
-            shiningForceItemsList.Add(new ShiningForceItem("White Ring", "8E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Black Ring", "8F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Evil Ring", "90"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sugoi Mizugi", "91"));
-            shiningForceItemsList.Add(new ShiningForceItem("Orb of Light", "92"));
-            shiningForceItemsList.Add(new ShiningForceItem("Moon Stone", "93"));
-            shiningForceItemsList.Add(new ShiningForceItem("Lunar Dew", "94"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kutui Huku", "95"));
-            shiningForceItemsList.Add(new ShiningForceItem("Domingo Egg", "96"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kenji", "97"));
-            shiningForceItemsList.Add(new ShiningForceItem("Teppou", "98"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kaku-Chan", "99"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yougi", "9A"));
-            shiningForceItemsList.Add(new ShiningForceItem("Great Axe", "9B"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kinden No Hako", "9C"));
-            shiningForceItemsList.Add(new ShiningForceItem("Short Sword", "9D"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Sword", "9E"));
-            shiningForceItemsList.Add(new ShiningForceItem("Long Sword", "9F"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Sword", "A0"));
-            shiningForceItemsList.Add(new ShiningForceItem("Broad Sword", "A1"));
-            shiningForceItemsList.Add(new ShiningForceItem("Doom Blade", "A2"));
-            shiningForceItemsList.Add(new ShiningForceItem("Katana", "A3"));
-            shiningForceItemsList.Add(new ShiningForceItem("Elven Arrow", "A4"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Darkness", "A5"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Light", "A6"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chaos Breaker", "A7"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bronze Lance", "A8"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Lance", "A9"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chrome Lance", "AA"));
-            shiningForceItemsList.Add(new ShiningForceItem("Devil Lance", "AB"));
-            shiningForceItemsList.Add(new ShiningForceItem("Halberd", "AC"));
-            shiningForceItemsList.Add(new ShiningForceItem("Spear", "AD"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Spear", "AE"));
-            shiningForceItemsList.Add(new ShiningForceItem("Valkyrie", "AF"));
-            shiningForceItemsList.Add(new ShiningForceItem("Hand Axe", "B0"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Axe", "B1"));
-            shiningForceItemsList.Add(new ShiningForceItem("Battle Axe", "B2"));
-            shiningForceItemsList.Add(new ShiningForceItem("Heat Axe", "B3"));
-            shiningForceItemsList.Add(new ShiningForceItem("Atlas", "B4"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Staff", "B5"));
-            shiningForceItemsList.Add(new ShiningForceItem("Guardian Staff", "B6"));
-            shiningForceItemsList.Add(new ShiningForceItem("Holy Staff", "B7"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Staff", "B8"));
-            shiningForceItemsList.Add(new ShiningForceItem("Demon Rod", "B9"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yogurt Ring", "BA"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Arrow", "BB"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Arrow", "BC"));
-            shiningForceItemsList.Add(new ShiningForceItem("Assault Shell", "BD"));
-            shiningForceItemsList.Add(new ShiningForceItem("Buster Shot", "BE"));
-            shiningForceItemsList.Add(new ShiningForceItem("Empty", "BF"));
-            shiningForceItemsList.Add(new ShiningForceItem("Medical Herb", "C0"));
-            shiningForceItemsList.Add(new ShiningForceItem("Healing Seed", "C1"));
-            shiningForceItemsList.Add(new ShiningForceItem("Antidote", "C2"));
-            shiningForceItemsList.Add(new ShiningForceItem("Shower of Cure", "C3"));
-            shiningForceItemsList.Add(new ShiningForceItem("Angel Wing", "C4"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Potion", "C5"));
-            shiningForceItemsList.Add(new ShiningForceItem("Defense Potion", "C6"));
-            shiningForceItemsList.Add(new ShiningForceItem("Legs of Haste", "C7"));
-            shiningForceItemsList.Add(new ShiningForceItem("Turbo Pepper", "C8"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bread of Life", "C9"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Ring", "CA"));
-            shiningForceItemsList.Add(new ShiningForceItem("Shield Ring", "CB"));
-            shiningForceItemsList.Add(new ShiningForceItem("Speed Ring", "CC"));
-            shiningForceItemsList.Add(new ShiningForceItem("Mobility Ring", "CD"));
-            shiningForceItemsList.Add(new ShiningForceItem("White Ring", "CE"));
-            shiningForceItemsList.Add(new ShiningForceItem("Black Ring", "CF"));
-            shiningForceItemsList.Add(new ShiningForceItem("Evil Ring", "D0"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sugoi Muzugi", "D1"));
-            shiningForceItemsList.Add(new ShiningForceItem("Orb of Light", "D2"));
-            shiningForceItemsList.Add(new ShiningForceItem("Moon Stone", "D3"));
-            shiningForceItemsList.Add(new ShiningForceItem("Lunar Dew", "D4"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kitui Huku", "D5"));
-            shiningForceItemsList.Add(new ShiningForceItem("Domingo Egg", "D6"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kenji", "D7"));
-            shiningForceItemsList.Add(new ShiningForceItem("Teppou", "D8"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kaku-Chan", "D9"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yougi", "DA"));
-            shiningForceItemsList.Add(new ShiningForceItem("Great Axe", "DB"));
-            shiningForceItemsList.Add(new ShiningForceItem("Kindan No Hako", "DC"));
-            shiningForceItemsList.Add(new ShiningForceItem("Short Sword", "DD"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Sword", "DE"));
-            shiningForceItemsList.Add(new ShiningForceItem("Long Sword", "DF"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Sword", "E0"));
-            shiningForceItemsList.Add(new ShiningForceItem("Broad Sword", "E1"));
-            shiningForceItemsList.Add(new ShiningForceItem("Doom Blade", "E2"));
-            shiningForceItemsList.Add(new ShiningForceItem("Katana", "E3"));
-            shiningForceItemsList.Add(new ShiningForceItem("Elven Arrow", "E4"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Darkness", "E5"));
-            shiningForceItemsList.Add(new ShiningForceItem("Sword of Light", "E6"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chaos Breaker", "E7"));
-            shiningForceItemsList.Add(new ShiningForceItem("Bronze Lance", "E8"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Lance", "E9"));
-            shiningForceItemsList.Add(new ShiningForceItem("Chrome Lance", "EA"));
-            shiningForceItemsList.Add(new ShiningForceItem("Devil Lance", "EB"));
-            shiningForceItemsList.Add(new ShiningForceItem("Halberd", "EC"));
-            shiningForceItemsList.Add(new ShiningForceItem("Spear", "ED"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Spear", "EE"));
-            shiningForceItemsList.Add(new ShiningForceItem("Valkyrie", "EF"));
-            shiningForceItemsList.Add(new ShiningForceItem("Hand Axe", "F0"));
-            shiningForceItemsList.Add(new ShiningForceItem("Middle Axe", "F1"));
-            shiningForceItemsList.Add(new ShiningForceItem("Battle Axe", "F2"));
-            shiningForceItemsList.Add(new ShiningForceItem("Heat Axe", "F3"));
-            shiningForceItemsList.Add(new ShiningForceItem("Atlas", "F4"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Staff", "F5"));
-            shiningForceItemsList.Add(new ShiningForceItem("Guardian Staff", "F6"));
-            shiningForceItemsList.Add(new ShiningForceItem("Holy Staff", "F7"));
-            shiningForceItemsList.Add(new ShiningForceItem("Power Staff", "F8"));
-            shiningForceItemsList.Add(new ShiningForceItem("Demon Rod", "F9"));
-            shiningForceItemsList.Add(new ShiningForceItem("Yogurt Ring", "FA"));
-            shiningForceItemsList.Add(new ShiningForceItem("Wooden Arrow", "FB"));
-            shiningForceItemsList.Add(new ShiningForceItem("Steel Arrow", "FC"));
-            shiningForceItemsList.Add(new ShiningForceItem("Assault Shell", "FD"));
-            shiningForceItemsList.Add(new ShiningForceItem("Buster Shot", "FE"));
-            shiningForceItemsList.Add(new ShiningForceItem("Empty", "FF"));
-        }
-
-        private void PopulateShiningForceMagicList()
-        {
-            shiningForceMagicList = new List<ShiningForceMagicItem>();
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Heal 1", "00"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Aura 1", "01"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Detox 1", "02"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Quick 1", "03"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Slow 1", "04"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Boost 1", "05"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dispel 1", "06"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Shield 1", "07"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Muddle 1", "08"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Blaze 1", "09"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Freeze 1", "0A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Bolt 1", "0B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Desoul 1", "0C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Egress 1", "0D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "0E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Sleep 1", "0F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "10"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "11"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "12"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "13"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "14"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "15"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "16"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "17"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "18"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "19"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "1A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "1B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "1C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "1D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "1E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "1F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "20"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "21"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "22"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "23"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "24"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "25"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "26"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "27"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "28"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "29"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "2A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "2B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "2C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "2D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "2E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "2F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "30"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "31"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "32"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "33"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "34"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "35"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "36"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "37"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "38"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "39"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "3A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "3B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "3C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "3D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "3E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy", "3F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Heal 2", "40"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Aura 2", "41"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Detox 2", "42"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Quick 2", "43"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Slow 2", "44"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Boost 2", "45"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dispel 2", "46"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Shield 2", "47"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Muddle 2", "48"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Blaze 2", "49"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Freeze 2", "4A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Bolt 2", "4B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Desoul 2", "4C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Egress 2", "4D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "4E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Sleep 2", "4F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "50"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "51"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "52"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "53"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "54"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "55"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "56"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "57"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "58"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "59"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "5A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "5B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "5C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "5D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "5E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "5F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "60"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "61"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "62"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "63"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "64"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "65"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "66"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "67"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "68"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "69"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "6A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "6B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "6C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "6D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "6E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "6F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "70"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "71"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "72"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "73"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "74"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "75"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "76"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "77"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "78"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "79"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "7A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "7B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "7C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "7D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "7E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 2", "7F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Heal 3", "80"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Aura 3", "81"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Detox 3", "82"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Quick 3", "83"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Slow 3", "84"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Boost 3", "85"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dispel 3", "86"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Shield 3", "87"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Muddle 3", "88"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Blaze 3", "89"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Freeze 3", "8A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Bolt 3", "8B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Desoul 3", "8C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Egress 3", "8D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "8E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Sleep 3", "8F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "90"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "91"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "92"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "93"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "94"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "95"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "96"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "97"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "98"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "99"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "9A"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "9B"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "9C"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "9D"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "9E"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "9F"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A0"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A1"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A2"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A3"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A4"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A5"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A6"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A7"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A8"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "A9"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "AA"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "AB"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "AC"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "AD"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "AE"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "AF"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B0"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B1"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B2"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B3"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B4"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B5"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B6"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B7"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B8"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "B9"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "BA"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "BB"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "BC"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "BD"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "BE"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 3", "BF"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Heal 4", "C0"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Aura 4", "C1"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Detox 4", "C2"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Quick 4", "C3"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Slow 4", "C4"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Boost 4", "C5"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dispel 4", "C6"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Shield 4", "C7"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Muddle 4", "C8"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Blaze 4", "C9"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Freeze 4", "CA"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Bolt 4", "CB"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Desoul 4", "CC"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Egress 4", "CD"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "CE"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Sleep 4", "CF"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D0"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D1"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D2"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D3"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D4"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D5"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D6"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D7"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D8"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "D9"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "DA"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "DB"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "DC"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "DD"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "DE"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "DF"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E0"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E1"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E2"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E3"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E4"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E5"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E6"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E7"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E8"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "E9"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "EA"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "EB"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "EC"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "ED"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "EE"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "EF"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F0"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F1"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F2"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F3"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F4"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F5"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F6"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F7"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F8"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "F9"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "FA"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "FB"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "FC"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "FD"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Dummy 4", "FE"));
-            shiningForceMagicList.Add(new ShiningForceMagicItem("Empty", "FF"));
-        }
-
-        private void PopulateShiningForceCharacterDetails(ShiningForceCharacterItem characterItem)
-        {
-            ResetShiningForceControls(false);
-            string value = GetValueByOffset(characterItem.LevelLoc, 1);
-            long val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceLevelTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.AttackLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceAttackTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.DefenseLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceDefenseTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.AgilityLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceAgilityTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MoveLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceMoveTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.ExperienceLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCurExpTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.CurrentHPLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCurHPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MaxHPLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceMaxHPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.CurrentMPLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCurMPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MaxMPLoc, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceMaxMPTb.Text = val.ToString();
-
-            foreach (string itemLoc in characterItem.ItemsLocs)
+            if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
             {
-                value = GetValueByOffset(itemLoc, 1);
-                ShiningForceItem item = GetShiningForceItem(value);
-                if (item != null)
-                {
-                    shiningForceItemsLB.Items.Add(item);
-                }
+                e.Effect = DragDropEffects.Copy;
             }
-            shiningForceItemsLB.DisplayMember = "Name";
-
-            foreach (string magicLoc in characterItem.MagicLocs)
+        };
+        DragDrop += (_, e) =>
+        {
+            if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
             {
-                value = GetValueByOffset(magicLoc, 1);
-                ShiningForceMagicItem magic = GetShiningForceMagicItem(value);
-                if (magic != null)
-                {
-                    shiningForceMagicLB.Items.Add(magic);
-                }
+                LoadPath(files[0]);
             }
-            shiningForceMagicLB.DisplayMember = "Name";
+        };
+    }
+
+    // ---- Game selection -----------------------------------------------------------
+
+    private void SelectGame(GameDefinition game, bool force = false)
+    {
+        if (!force && ReferenceEquals(game, _game))
+        {
+            SyncGameSelectors();
+            return;
         }
 
-        private string GetShiningForce2CurrentGold()
+        if (!force && _save is not null)
         {
-            string hexVal = GetValueByOffset(SHINING_FORCE_2_GOLD_LOC, 2);
-            long gold = long.Parse(hexVal, System.Globalization.NumberStyles.HexNumber);
-            return gold.ToString();
-        }
-
-        private void PopulateShiningForce2CurrentGold()
-        {
-            shiningForce2CurrentGoldTb.Text = GetShiningForce2CurrentGold();
-        }
-
-        private void ResetShiningForce2Controls(bool resetCharacterList)
-        {
-            if (resetCharacterList)
+            if (!ConfirmDiscardOrSave("switching games"))
             {
-                shiningForce2CharacterCmb.SelectedIndex = -1;
+                SyncGameSelectors();
+                return;
             }
 
-            shiningForce2NewGoldTb.Text = "";
-            shiningForce2LevelTb.Text = "";
-            shiningForce2CurAttackBaseTb.Text = "";
-            shiningForce2NewAttackBaseTb.Text = "";
-            shiningForce2CurAttackEquipTb.Text = "";
-            shiningForce2NewAttackEquipTb.Text = "";
-            shiningForce2CurDefenseBaseTb.Text = "";
-            shiningForce2NewDefenseBaseTb.Text = "";
-            shiningForce2CurDefenseEquipTb.Text = "";
-            shiningForce2NewDefenseEquipTb.Text = "";
-            shiningForce2CurAgilityBaseTb.Text = "";
-            shiningForce2NewAgilityBaseTb.Text = "";
-            shiningForce2CurAgilityEquipTb.Text = "";
-            shiningForce2NewAgilityEquipTb.Text = "";
-            shiningForce2CurMoveBaseTb.Text = "";
-            shiningForce2NewMoveBaseTb.Text = "";
-            shiningForce2CurMoveEquipTb.Text = "";
-            shiningForce2NewMoveEquipTb.Text = "";
-            shiningForce2CurExpTb.Text = "";
-            shiningForce2NewExpTb.Text = "";
-            shiningForce2PresentHPTb.Text = "";
-            shiningForce2NewPresentHPTb.Text = "";
-            shiningForce2MaxHPTb.Text = "";
-            shiningForce2NewMaxHPTb.Text = "";
-            shiningForce2PresentMPTb.Text = "";
-            shiningForce2NewPresentMPTb.Text = "";
-            shiningForce2MaxMPTb.Text = "";
-            shiningForce2NewMaxMPTb.Text = "";
-            shiningForce2KillsTb.Text = "";
-            shiningForce2DefeatsTb.Text = "";
-            shiningForce2ItemListBox.Items.Clear();
-            shiningForce2MagicListBox.Items.Clear();
+            CloseSave();
         }
 
         private void PopulateShiningForce2CharacterList()
@@ -2136,1000 +1338,203 @@ namespace ShiningEditor
 
             shiningForce2CharacterCmb.DisplayMember = "Name";
         }
-
-        private void PopulateShiningForce2ItemsList()
+        else
         {
-            shiningForce2ItemsList = new List<ShiningForce2Item>();
-
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Medical Herb", "00"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Seed", "01"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Drop", "02"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Antidote", "03"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Angel Wing", "04"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Fairy Powder", "05"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Water", "06"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Fairy Tear", "07"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Healing Rain", "08"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Water", "09"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Protect Milk", "0A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Quick Chicken", "0B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Running Pemento", "0C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Chearful Bread", "0D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Bright Honey", "0E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Brave Apple", "0F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Shining Ball", "10"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Blizard", "11"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Holy Thunder", "12"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Ring", "13"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Protect Ring", "14"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Quick Ring", "15"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Running Ring", "16"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("White Ring", "17"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Black Ring", "18"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Ring", "19"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Leather Glove", "1A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Glove", "1B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Brass Knuckles", "1C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Knuckles", "1D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Misty Knuckles", "1E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Giant Knuckles", "1F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Knuckles", "20"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Axe", "21"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Hand Axe", "22"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Middle Axe", "23"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Axe", "24"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Battle Axe", "25"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Large Axe", "26"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Axe", "27"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Heat Axe", "28"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Atlas Axe", "29"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Ground Axe", "2A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Rune Axe", "2B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Axe", "2C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Arrow", "2D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Arrow", "2E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Steel Arrow", "2F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Robin Arrow", "30"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Assault Shell", "31"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Shot", "32"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Nazca Cannon", "33"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Buster Shot", "34"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Hyper Cannon", "35"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Grand Cannon", "36"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Shot", "37"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Stick", "38"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Sword", "39"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Middle Sword", "3A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Long Sword", "3B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Middle Sword", "3C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Achiles Sword", "3D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Broad Sword", "3E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Buster Sword", "3F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Sword", "40"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Critical Sword", "41"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Battle Sword", "42"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Force Sword", "43"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Counter Sword", "44"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Levanter", "45"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Dark Sword", "46"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Sword", "47"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Spear", "48"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Bronze Lance", "49"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Spear", "4A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Steel Lance", "4B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Power  Spear", "4C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Heavy Lance", "4D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Javelin", "4E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Chrome Lance", "4F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Valkyrie", "50"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Holy Lance", "51"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Mist Javelin", "52"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Halberd", "53"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Evil Lance", "54"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Rod", "55"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Rod", "56"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Bronze Rod", "57"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Rod", "58"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Power Stick", "59"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Flail", "5A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Guardian Staff", "5B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Indra Staff", "5C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Mage Staff", "5D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Wish Staff", "5E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Great Rod", "5F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Supply Staff", "60"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Holy Staff", "61"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Freeze Staff", "62"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Godess Staff", "63"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Mystery Staff", "64"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Demon Rod", "65"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Iron Ball", "66"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Short Knife", "67"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Dagger", "68"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Knife", "69"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Theive's Dagger", "6A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Kitana", "6B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Ninja Kitana", "6C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Gisarme", "6D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Taros Sword", "6E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Right of Hope", "6F"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Wooden Panel", "70"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Sky Orb", "71"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Cannon", "72"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Dry Stone", "73"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Dynamite", "74"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Arm of Golem", "75"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Pegasus Wing", "76"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Warrior's Pride", "77"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Silver Tank", "78"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Secret Book", "79"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Vigor Ball", "7A"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Mithryl", "7B"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Life Ring", "7C"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Cotton Balloon", "7D"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Chirrup Sandles", "7E"));
-            shiningForce2ItemsList.Add(new ShiningForce2Item("Blank Space", "7F"));
+            _tabs.SetPages(("STATUS", _tabStatus));
         }
 
-        private void PopulateShiningForce2MagicList()
+        _numGold.Maximum = SaveState.MaxFor(game.GoldWidth);
+        _lblParty.Text = game is ShiningInTheDarknessGame ? "PARTY" : "FORCE MEMBERS";
+
+        ApplyAccent();
+        FitFieldTable();
+        UpdateState();
+    }
+
+    private void SyncGameSelectors()
+    {
+        _switchingGame = true;
+        int idx = IndexOfGame(_game);
+        _cboGame.SelectedIndex = idx;
+        foreach (ToolStripItem item in _mnuGame.DropDownItems)
         {
-            shiningForce2MagicList = new List<ShiningForce2MagicItem>();
-
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal1", "00"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura1", "01"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox1", "02"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost1", "03"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow1", "04"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack1", "05"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel1", "06"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle1", "07"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul1", "08"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep1", "09"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress1", "0A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze1", "0B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze1", "0C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt1", "0D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast1", "0E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Spoit1", "0F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Healin1", "10"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Flame1", "11"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Snow1", "12"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Demon1", "13"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Power1", "14"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Guard1", "15"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Speed1", "16"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Idaten1", "17"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Health1", "18"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("B. Rock1", "19"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Laser1", "1A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Katon1", "1B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Raijin1", "1C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dao1", "1D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Appolo1", "1E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Neptun1", "1F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Atlas1", "20"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Powder1", "21"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("G. Tear1", "22"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Hanny1", "23"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brave1", "24"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("F. Ball1", "25"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brezard1", "26"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Thundr", "27"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aqua1", "28"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi1", "29"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Shine1", "2A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Oddeye1", "2B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bowie1", "2C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sarah1", "2D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Chester1", "2E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Jaha1", "2F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kazin1", "30"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slade1", "31"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi1", "32"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Peter1", "33"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("May1", "34"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Gerhalt1", "35"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Luke1", "36"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rohde1", "37"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rick1", "38"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Elrick1", "39"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Eric1", "3A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Karna1", "3B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Randolf1", "3C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Tyrin1", "3D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Janet1", "3E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blank", "3F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal2", "40"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura2", "41"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox2", "42"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost2", "43"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow2", "44"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack2", "45"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel2", "46"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle2", "47"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul2", "48"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep2", "49"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress2", "4A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze2", "4B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze2", "4C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt2", "4D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast2", "4E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Spoit2", "4F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Healin2", "50"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Flame2", "51"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Snow2", "52"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Demon2", "53"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Power2", "54"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Guard2", "55"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Speed2", "56"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Idaten2", "57"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Health2", "58"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("B. Rock2", "59"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Laser2", "5A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Katon2", "5B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Raijin2", "5C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dao2", "5D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Appolo2", "5E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Neptun2", "5F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Atlas2", "60"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Powder2", "61"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("G. Tear2", "62"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Hanny2", "63"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brave2", "64"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("F. Ball2", "65"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brezard2", "66"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Thundr2", "67"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aqua2", "68"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi2", "69"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Shine2", "6A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Oddeye2", "6B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bowie2", "6C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sarah2", "6D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Chester2", "6E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Jaha2", "6F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kazin2", "70"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slade2", "71"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi2", "72"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Peter2", "73"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("May2", "74"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Gerhalt2", "75"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Luke2", "76"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rohde2", "77"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rick2", "78"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Elrick2", "79"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Eric2", "7A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Karna2", "7B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Randolf2", "7C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Tyrin2", "7D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Janet2", "7E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Higins2", "7F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal3", "80"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura3", "81"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox3", "82"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost3", "83"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow3", "84"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack3", "85"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel3", "86"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle3", "87"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul3", "88"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep3", "89"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress3", "8A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze3", "8B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze3", "8C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt3", "8D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast3", "8E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Spoit3", "8F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Healin3", "90"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Flame3", "91"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Snow3", "92"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Demon3", "93"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Power3", "94"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Guard3", "95"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Speed3", "96"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Idaten3", "97"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Health3", "98"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("B. Rock3", "99"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Laser3", "9A"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Katon3", "9B"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Raijin3", "9C"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dao3", "9D"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Appolo3", "9E"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Neptun3", "9F"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Atlas3", "A0"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Powder3", "A1"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("G. Tear3", "A2"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Hanny3", "A3"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brave3", "A4"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("F. Ball3", "A5"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Brezard3", "A6"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Thundr3", "A7"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aqua3", "A8"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi3", "A9"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Shine3", "AA"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Oddeye3", "AB"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bowie3", "AC"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sarah3", "AD"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Chester3", "AE"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Jaha3", "AF"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kazin3", "B0"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slade3", "B1"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Kiwi3", "B2"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Peter3", "B3"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("May3", "B4"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Gerhalt3", "B5"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Luke3", "B6"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rohde3", "B7"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Rick3", "B8"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Elrick3", "B9"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Eric3", "BA"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Karna3", "BB"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Randolf3", "BC"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Tyrin3", "BD"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Janet3", "BE"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Higins3", "BF"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Heal4", "C0"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Aura4", "C1"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Detox4", "C2"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Boost4", "C3"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Slow4", "C4"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Attack4", "C5"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Dispel4", "C6"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Muddle4", "C7"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Desoul4", "C8"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Sleep4", "C9"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Egress4", "CA"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blaze4", "CB"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Freeze4", "CC"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Bolt4", "CD"));
-            shiningForce2MagicList.Add(new ShiningForce2MagicItem("Blast4", "CE"));
-        }
-
-        private void PopulateShiningForce2CharacterDetails(ShiningForce2CharacterItem characterItem)
-        {
-            ResetShiningForce2Controls(false);
-
-            string value = GetValueByOffset(characterItem.LevelOffset, 1);
-            long val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2LevelTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.AttackBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurAttackBaseTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.AttackEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurAttackEquipTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.DefenseBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurDefenseBaseTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.DefenseEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurDefenseEquipTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.AgilityBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurAgilityBaseTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.AgilityEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurAgilityEquipTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MoveBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurMoveBaseTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MoveEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurMoveEquipTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.ExperienceOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2CurExpTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.PresentHPOffset, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2PresentHPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MaximumHPOffset, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2MaxHPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.PresentMPOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2PresentMPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.MaximumMPOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2MaxMPTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.KillsOffset, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2KillsTb.Text = val.ToString();
-            value = GetValueByOffset(characterItem.DefeatsOffset, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForce2DefeatsTb.Text = val.ToString();
-
-            foreach (string itemLoc in characterItem.ItemsOffset)
+            if (item is ToolStripMenuItem mi)
             {
-                value = GetValueByOffset(itemLoc, 1);
-                ShiningForce2Item item = GetShiningForce2Item(value);
-                if (item != null)
-                {
-                    shiningForce2ItemListBox.Items.Add(item);
-                }
-            }
-            shiningForce2ItemListBox.DisplayMember = "Name";
-
-            foreach (string magicLoc in characterItem.MagicOffset)
-            {
-                value = GetValueByOffset(magicLoc, 1);
-                ShiningForce2MagicItem magic = GetShiningForce2MagicItem(value);
-                if (magic != null)
-                {
-                    shiningForce2MagicListBox.Items.Add(magic);
-                }
-            }
-            shiningForce2MagicListBox.DisplayMember = "Name";
-        }
-
-        private void ResetShiningForceCDControls(bool resetCharacterList, bool clearGold = false)
-        {
-            if (resetCharacterList)
-            {
-                shiningForceCDSelectCharacterCmb.SelectedIndex = -1;
-                shiningForceCDSelectCharacterCmb.Items.Clear();
-            }
-
-            if (clearGold)
-            {
-                shiningForceCDCurrentGoldTb.Text = "";
-            }
-
-            shiningForceCDNewGoldTb.Text = "";
-            shiningForceCDCurrentLevelTb.Text = "";
-            shiningForceCDCurrentClassTb.Text = "";
-            shiningForceCDAttackBaseTb.Text = "";
-            shiningForceCDNewAttackBaseTb.Text = "";
-            shiningForceCDAttackEquipTb.Text = "";
-            shiningForceCDNewAttackEquipTb.Text = "";
-            shiningForceCDDefenseBaseTb.Text = "";
-            shiningForceCDNewDefenseBaseTb.Text = "";
-            shiningForceCDDefenseEquipTb.Text = "";
-            shiningForceCDNewDefenseEquipTb.Text = "";
-            shiningForceCDAgilityBaseTb.Text = "";
-            shiningForceCDNewAgilityBaseTb.Text = "";
-            shiningForceCDAgilityEquipTb.Text = "";
-            shiningForceCDNewAgilityEquipTb.Text = "";
-            shiningForceCDMoveBaseTb.Text = "";
-            shiningForceCDNewMoveBaseTb.Text = "";
-            shiningForceCDMoveEquipTb.Text = "";
-            shiningForceCDNewMoveEquipTb.Text = "";
-            shiningForceCDExperienceTb.Text = "";
-            shiningForceCDNewExperienceTb.Text = "";
-            shiningForceCDPresentHPTb.Text = "";
-            shiningForceCDNewPresentHPTb.Text = "";
-            shiningForceCDMaxHPTb.Text = "";
-            shiningForceCDNewMaxHPTb.Text = "";
-            shiningForceCDPresentMPTb.Text = "";
-            shiningForceCDNewPresentMPTb.Text = "";
-            shiningForceCDMaxMPTb.Text = "";
-            shiningForceCDNewMaxMPTb.Text = "";
-            shiningForceCDItemsListBox.Items.Clear();
-            shiningForceCDMagicListBox.Items.Clear();
-        }
-
-        private string GetShiningForceCDCurrentGold()
-        {
-            byte[] bytes = GetBytesByOffset(SHINING_FORCE_CD_GOLD_LOC, 4);
-
-            // Save states store gold as BIG-endian
-            if (BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(bytes);
-            }
-
-            uint gold = BitConverter.ToUInt32(bytes, 0);
-            return gold.ToString();
-        }
-
-        private void PopulateShiningForceCDCurrentGold()
-        {
-            shiningForceCDCurrentGoldTb.Text = GetShiningForceCDCurrentGold();
-        }
-
-        private void PopulateShiningForceCDCharacterList()
-        {
-            shiningForceCDSelectCharacterCmb.Items.Clear();
-
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("HERO (player)", 0x0D522)); // player name string is stored elsewhere (e.g., "Aaron" or "Able", whatever is entered.
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("NATASHA", 0x0D55A));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("ERIC", 0x0D592));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("DAWN", 0x0D5CA));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("LUKE", 0x0D602));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("SHADE", 0x0D63A));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("GRAHAM", 0x0D672));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("CHESTER", 0x0D6AA));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("MAY", 0x0D6E2));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("SARAH", 0x0D71A));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("RANDOLF", 0x0D752));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("CLAUDE", 0x0D78A));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("ROHDE", 0x0D7C2));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("RUSH", 0x0D7FA));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("HIGINS", 0x0D832));
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar("GYAN", 0x0D86A));
-
-            shiningForceCDSelectCharacterCmb.DisplayMember = "Name";
-        }
-
-        private void PopulateShiningForceCDCharacterList(bool loadAllSlotsEvenIfBlank = false)
-        {
-            shiningForceCDSelectCharacterCmb.Items.Clear();
-
-            const int slotCount = 27;
-
-            string heroName = GetShiningForceCDPlayerName();
-
-            // Slot 0 is HERO’s data block.
-            shiningForceCDSelectCharacterCmb.Items.Add(MakeChar($"HERO ({heroName})", SfcdCharTableBase)); // 0x0D522
-
-            // Slot 1.. are other characters. Their names are stored in the PREVIOUS slot’s name field.
-            for (int slot = 1; slot < slotCount; slot++)
-            {
-                int statsOffset = SfcdCharTableBase + (slot * SfcdCharSlotSize);
-
-                // Name for this slot is stored in (slot - 1)
-                string name = ReadSfcdSlotNameFromStatsBase(statsOffset);
-
-                if (!loadAllSlotsEvenIfBlank && string.IsNullOrWhiteSpace(name))
-                {
-                    continue;
-                }
-
-                string displayName = string.IsNullOrWhiteSpace(name)
-                    ? $"— Empty Slot {slot} —"
-                    : name;
-
-                shiningForceCDSelectCharacterCmb.Items.Add(MakeChar(string.IsNullOrWhiteSpace(displayName) ? $"- Empty Slot {slot} -" : displayName, statsOffset));
-            }
-
-            shiningForceCDSelectCharacterCmb.DisplayMember = "Name";
-        }
-
-        private string GetShiningForceCDPlayerName()
-        {
-            byte[] nameBytes = GetBytesByOffset(SFCD_PLAYER_NAME_OFFSET, SFCD_PLAYER_NAME_LENGTH);
-
-            int zeroIndex = Array.IndexOf(nameBytes, (byte)0);
-            int len = zeroIndex >= 0 ? zeroIndex : SFCD_PLAYER_NAME_LENGTH;
-
-            return System.Text.Encoding.ASCII.GetString(nameBytes, 0, len).Trim();
-        }
-
-        private string ReadSfcdSlotName(int slotIndex)
-        {
-            int slotOffset = SfcdCharTableBase + (slotIndex * SfcdCharSlotSize);
-            int nameOffset = slotOffset + SfcdNameOffset;
-
-            byte[] nameBytes = GetBytesByOffset(nameOffset, SfcdNameLength);
-
-            int zeroIndex = Array.IndexOf(nameBytes, (byte)0);
-            int len = zeroIndex >= 0 ? zeroIndex : SfcdNameLength;
-
-            return System.Text.Encoding.ASCII.GetString(nameBytes, 0, len).Trim();
-        }
-
-        private string ReadSfcdSlotNameFromStatsBase(int statsBaseOffset)
-        {
-            // statsBaseOffset is slotStart + 0x10
-            int nameOffset = statsBaseOffset - 0x0A; // -> slotStart + 0x06
-
-            byte[] bytes = GetBytesByOffset(nameOffset.ToString("X"), 10);
-
-            // trim at first 0x00
-            int end = Array.IndexOf(bytes, (byte)0x00);
-            if (end < 0)
-            {
-                end = bytes.Length;
-            }
-
-            var name = System.Text.Encoding.ASCII.GetString(bytes, 0, end).Trim();
-            return name;
-        }
-
-
-        private string GetSfcdItemName(byte rawId)
-        {
-            if (_shiningForceCDItemNamesByRawId == null)
-            {
-                return null;
-            }
-
-            if (rawId == 0xFF || rawId == 0x7F)
-            {
-                return null;
-            }
-
-            bool equipped = (rawId & 0x80) != 0;
-            byte baseId = (byte)(rawId & 0x7F);
-
-            if (_shiningForceCDItemNamesByRawId.TryGetValue(baseId, out var baseName))
-            {
-                return equipped ? baseName + " (Equipped)" : baseName;
-            }
-
-            // If some books truly use 0x80..0xFF as non-equipped raw IDs,
-            // you can keep a raw fallback:
-            if (_shiningForceCDItemNamesByRawId.TryGetValue(rawId, out var rawName))
-            {
-                return rawName;
-            }
-
-            return null;
-        }
-
-        private void PopulateShiningForceCDCharacterDetails(ShiningForceCDCharacterItem characterItem)
-        {
-            //LogError($"[SFCD] Selected: {characterItem.Name} ItemsOffset={string.Join(",", characterItem.ItemsOffset)}");
-            //byte[] dump = GetBytesByOffset("D536", 12);
-            //LogError("[SFCD] Dump @D536 (12) = " + BitConverter.ToString(dump));
-
-            ResetShiningForceCDControls(false);
-
-            // Always clear listboxes before repopulating
-            shiningForceCDItemsListBox.Items.Clear();
-            shiningForceCDMagicListBox.Items.Clear();
-
-            string classCode = GetClassCode(characterItem.BaseOffset);
-            shiningForceCDCurrentClassTb.Text = classCode;
-
-            string value;
-            long val;
-
-            value = GetValueByOffset(characterItem.LevelOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDCurrentLevelTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.AttackBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDAttackBaseTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.AttackEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDAttackEquipTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.DefenseBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDDefenseBaseTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.DefenseEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDDefenseEquipTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.AgilityBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDAgilityBaseTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.AgilityEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDAgilityEquipTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.MoveBaseOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDMoveBaseTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.MoveEquipOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDMoveEquipTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.ExperienceOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDExperienceTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.PresentHPOffset, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDPresentHPTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.MaximumHPOffset, 2);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDMaxHPTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.PresentMPOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDPresentMPTb.Text = val.ToString();
-
-            value = GetValueByOffset(characterItem.MaximumMPOffset, 1);
-            val = long.Parse(value, System.Globalization.NumberStyles.HexNumber);
-            shiningForceCDMaxMPTb.Text = val.ToString();
-
-            try
-            {
-                foreach (string itemIdOffset in characterItem.ItemsOffset)
-                {
-                    byte raw = GetBytesByOffset(itemIdOffset, 1)[0];
-
-                    // adjust empties if needed; DO NOT skip 0x00 if that is Medical Herb for you
-                    if (raw == 0xFF || raw == 0x7F)
-                    {
-                        continue;
-                    }
-
-                    string name = GetSfcdItemName(raw);
-
-                    if (name != null)
-                    {
-                        shiningForceCDItemsListBox.Items.Add(name);
-                    }
-                    else
-                    {
-                        shiningForceCDItemsListBox.Items.Add($"Unknown Item (0x{raw:X2})");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogError(ex.Message + " Occurred while attempting to load SFCD items.");
-            }
-
-            // If listbox contains objects, DisplayMember works; if it contains strings too, it's harmless.
-            shiningForceCDItemsListBox.DisplayMember = "Name";
-
-            // ----------------------------
-            // MAGIC (still 1 byte each)
-            // ----------------------------
-            try
-            {
-                foreach (string magicLoc in characterItem.MagicOffset)
-                {
-                    value = GetValueByOffset(magicLoc, 1);
-
-                    // Debug logging
-                    LogError($"[SFCD] Magic @0x{magicLoc} = 0x{value}");
-
-                    if (value == "3F")
-                    {
-                        continue;
-                    }
-
-                    ShiningForceCDMagicItem magic = GetShiningForceCDMagicItem(value);
-                    if (magic != null)
-                    {
-                        shiningForceCDMagicListBox.Items.Add(magic);
-                    }
-                    else
-                    {
-                        shiningForceCDMagicListBox.Items.Add($"Unknown Magic (0x{value})");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogError(ex.Message + " Occurred while attempting to load SFCD magic.");
-            }
-
-            shiningForceCDMagicListBox.DisplayMember = "Name";
-        }
-
-        private void PopulateShiningForceCDItemsList(ShiningForceCDBook currentBook)
-        {
-            _shiningForceCDItemNamesByRawId = new Dictionary<byte, string>();
-
-            void Add(string name, string hexRawId)
-            {
-                byte rawId = byte.Parse(hexRawId, System.Globalization.NumberStyles.HexNumber);
-
-                if (_shiningForceCDItemNamesByRawId.TryGetValue(rawId, out var existing) && existing != name)
-                {
-                    // Keep both so we never silently lie.
-                    //_shiningForceCDItemNamesByRawId[rawId] = existing + " / " + name;
-                    LogError($"[SFCD] Item ID collision 0x{rawId:X2}: '{existing}' vs '{name}'");
-                    return;
-                }
-
-                _shiningForceCDItemNamesByRawId[rawId] = name;
-            }
-
-            void AddWithBase(string name, string hexRawId)
-            {
-                byte rawId = byte.Parse(hexRawId, System.Globalization.NumberStyles.HexNumber);
-                Add(name, hexRawId);
-
-                // If it looks like an equipped variant, also map the base id
-                if ((rawId & 0x80) != 0)
-                {
-                    byte baseId = (byte)(rawId & 0x7F);
-                    _shiningForceCDItemNamesByRawId[baseId] = name;
-                }
-            }
-
-            // ---------
-            // Common (raw IDs)
-            // ---------
-            Add("Medical Herb", "00");
-            Add("Healing Seed", "01");
-            Add("Antidote", "02");
-            Add("Healing Rain", "03");
-            Add("Angel Wing", "04");
-            Add("Powerful Wine", "05");
-            Add("Protect Milk", "06");
-            Add("Quick Chicken", "07");
-            Add("Running Pimento", "08");
-            Add("Cheerful Bread", "09");
-
-            // Rings (raw IDs)
-            AddWithBase("Power Ring", "0A");
-            AddWithBase("Protect Ring", "0B");
-            AddWithBase("Quick Ring", "0C");
-            AddWithBase("Running Ring", "0D");
-            AddWithBase("White Ring", "0E");
-            AddWithBase("Black Ring", "0F");
-            AddWithBase("Evil Ring", "90");
-
-            // Empty markers (raw IDs)
-            Add("Empty", "7F");
-            AddWithBase("Empty (Equipped?)", "FF");
-
-            // ---------
-            // Book 1/2 raw IDs (from your original list)
-            // NOTE: these appear to already be raw IDs, not base IDs.
-            // ---------
-            if (currentBook == ShiningForceCDBook.Book1TowardsTheRootOfEvil || currentBook == ShiningForceCDBook.Book2TheEvilGodAwakes)
-            {
-                AddWithBase("Leather Glove", "91");
-                AddWithBase("Power Glove", "92");
-                AddWithBase("Battle Glove", "93");
-                AddWithBase("Iron Claw", "94");
-
-                AddWithBase("Short Sword", "9D");
-                AddWithBase("Broad Sword", "A1");
-                AddWithBase("Critical Sword", "A2");
-                AddWithBase("Wooden Stick", "A3");
-                AddWithBase("Robin's Arrow", "A4");
-                AddWithBase("Dark Sword", "A5");
-                AddWithBase("Wood Sword", "26");
-                AddWithBase("Sword of Hajya", "A7");
-                AddWithBase("Bronze Lance", "A8");
-                AddWithBase("Steel Lance", "A9");
-                AddWithBase("Chrome Lance", "AA");
-                AddWithBase("Evil Lance", "AB");
-                AddWithBase("Halberd", "AC");
-                AddWithBase("Spear", "AD");
-                AddWithBase("Power Spear", "AE");
-                AddWithBase("Valkyrie", "AF");
-                AddWithBase("Hand Axe", "B0");
-                AddWithBase("Middle Axe", "B1");
-                AddWithBase("Battle Axe", "B2");
-                AddWithBase("Heat Axe", "B3");
-                AddWithBase("Axe of Atlas", "B4");
-                AddWithBase("Wooden Staff", "B5");
-                AddWithBase("Protect Staff", "B6");
-                AddWithBase("Holy Staff", "B7");
-                AddWithBase("Power Stick", "B8");
-                AddWithBase("Demon Rod", "B9");
-                AddWithBase("Flail", "BA");
-                AddWithBase("Wooden Arrow", "BB");
-                AddWithBase("Steel Arrow", "BC");
-                AddWithBase("Assault Shell", "BD");
-                AddWithBase("Buster Shot", "BE");
-                AddWithBase("Short Axe", "97");
-                AddWithBase("Bronze Rod", "98"); 
-                AddWithBase("Iron Rod", "99"); 
-                AddWithBase("Iron Arrow", "9A"); 
-                AddWithBase("Club", "15");
-                AddWithBase("Club", "95");
-
-                // Proven in your Book1 save:
-                AddWithBase("Steel Sword", "A0");
-                AddWithBase("Steel Sword", "20"); // keep if you ever see raw 0x20
-            }
-            else if (currentBook == ShiningForceCDBook.Book3ANewChallenge || currentBook == ShiningForceCDBook.Book4TheLastBattle)
-            {
-                // ---------
-                // Book 3/4 raw IDs (from your list)
-                // These are ALSO raw IDs (0x91..0xAF etc), so they WILL collide.
-                // That’s OK — collisions get logged and preserved as “A / B”.
-                // ---------
-                AddWithBase("Misty Knuckle", "91");
-                AddWithBase("Giant Knuckle", "92");
-                AddWithBase("Large Axe", "93");
-                AddWithBase("Earth Axe", "94");
-                AddWithBase("Great Rod", "95");
-                AddWithBase("Mystery Staff", "96");
-                AddWithBase("Hyper Cannon", "97");
-                AddWithBase("Shut Cannon", "98");
-                AddWithBase("Buster Sword", "99");
-                AddWithBase("Counter Sword", "9A");
-                AddWithBase("Light Sword", "26");
-                AddWithBase("Javelin", "9B");
-                AddWithBase("Chrome Lance", "9C");
-                AddWithBase("Samurai Sword", "9D");
-                AddWithBase("Higins", "9E");
-                AddWithBase("Murasame", "9F");
-                AddWithBase("Murasana", "A0");
-                AddWithBase("Iris Blade", "A1");
-                AddWithBase("Kamikaze Axe", "A2");
-                AddWithBase("Kizer Knuckle", "A3");
-                AddWithBase("Venom Javelin", "A4");
-                AddWithBase("Work Glove", "A5");
-                AddWithBase("Pegaus Wing", "A7");
-                AddWithBase("Mithril", "A8");
-                AddWithBase("Steel Sword", "A9");
-                AddWithBase("Broad Sword", "AA");
-                AddWithBase("Battle Axe", "AB");
-                AddWithBase("Axe of Atlas", "AC");
-                AddWithBase("Protect Staff", "AD");
-                AddWithBase("Chirrup Hummer", "AE");
-                AddWithBase("Teddy's Coat", "AF");
+                mi.Checked = ReferenceEquals(mi.Tag, _game);
             }
         }
 
-        private void PopulateShiningForceCDMagicList()
+        _switchingGame = false;
+    }
+
+    private static int IndexOfGame(GameDefinition g)
+    {
+        for (int i = 0; i < Games.All.Count; i++)
         {
-            shiningForceCDMagicList = new List<ShiningForceCDMagicItem>();
-
-            // A very typical SF-style encoding: base spell id + (levelGroup * 0x40)
-            // Where levelGroup: 0 = L1, 1 = L2, 2 = L3, 3 = L4
-            // And 0x3F is often used for "Empty".
-            shiningForceCDMagicList.AddRange(new[]
+            if (ReferenceEquals(Games.All[i], g))
             {
-                // ----- Level 1 -----
-                new ShiningForceCDMagicItem("Heal 1",   "00"),
-                new ShiningForceCDMagicItem("Aura 1",   "01"),
-                new ShiningForceCDMagicItem("Detox 1",  "02"),
-                new ShiningForceCDMagicItem("Boost 1",  "03"),
-                new ShiningForceCDMagicItem("Slow 1",   "04"),
-                new ShiningForceCDMagicItem("Attack 1", "05"),
-                new ShiningForceCDMagicItem("Dispel 1", "06"),
-                new ShiningForceCDMagicItem("Muddle 1", "07"),
-                new ShiningForceCDMagicItem("Desoul 1", "08"),
-                new ShiningForceCDMagicItem("Sleep 1",  "09"),
-                new ShiningForceCDMagicItem("Blaze 1",  "0B"),
-                new ShiningForceCDMagicItem("Freeze 1", "0C"),
-                new ShiningForceCDMagicItem("Bolt 1",   "0D"),
-                new ShiningForceCDMagicItem("Hell 1",   "0E"),
-                new ShiningForceCDMagicItem("Egress 1", "0A"),
-                new ShiningForceCDMagicItem("Empty",    "3F"),
-
-                // ----- Level 2 -----
-                new ShiningForceCDMagicItem("Heal 2",   "40"),
-                new ShiningForceCDMagicItem("Aura 2",   "41"),
-                new ShiningForceCDMagicItem("Detox 2",  "42"),
-                new ShiningForceCDMagicItem("Boost 2",  "43"),
-                new ShiningForceCDMagicItem("Slow 2",   "44"),
-                new ShiningForceCDMagicItem("Attack 2", "45"),
-                new ShiningForceCDMagicItem("Dispel 2", "46"),
-                new ShiningForceCDMagicItem("Muddle 2", "47"),
-                new ShiningForceCDMagicItem("Desoul 2", "48"),
-                new ShiningForceCDMagicItem("Sleep 2",  "49"),
-                new ShiningForceCDMagicItem("Blaze 2",  "4B"),
-                new ShiningForceCDMagicItem("Freeze 2", "4C"),
-                new ShiningForceCDMagicItem("Bolt 2",   "4D"),
-                new ShiningForceCDMagicItem("Hell 2",   "4E"),
-                new ShiningForceCDMagicItem("Egress 2", "4A"),
-
-                // ----- Level 3 -----
-                new ShiningForceCDMagicItem("Heal 3",   "80"),
-                new ShiningForceCDMagicItem("Aura 3",   "81"),
-                new ShiningForceCDMagicItem("Detox 3",  "82"),
-                new ShiningForceCDMagicItem("Boost 3",  "83"),
-                new ShiningForceCDMagicItem("Slow 3",   "84"),
-                new ShiningForceCDMagicItem("Attack 3", "85"),
-                new ShiningForceCDMagicItem("Dispel 3", "86"),
-                new ShiningForceCDMagicItem("Muddle 3", "87"),
-                new ShiningForceCDMagicItem("Desoul 3", "88"),
-                new ShiningForceCDMagicItem("Sleep 3",  "89"),
-                new ShiningForceCDMagicItem("Blaze 3",  "8B"),
-                new ShiningForceCDMagicItem("Freeze 3", "8C"),
-                new ShiningForceCDMagicItem("Bolt 3",   "8D"),
-                new ShiningForceCDMagicItem("Hell 3",   "8E"),
-                new ShiningForceCDMagicItem("Egress 3", "8A"),
-
-                // ----- Level 4 -----
-                new ShiningForceCDMagicItem("Heal 4",   "C0"),
-                new ShiningForceCDMagicItem("Aura 4",   "C1"),
-                new ShiningForceCDMagicItem("Detox 4",  "C2"),
-                new ShiningForceCDMagicItem("Boost 4",  "C3"),
-                new ShiningForceCDMagicItem("Slow 4",   "C4"),
-                new ShiningForceCDMagicItem("Attack 4", "C5"),
-                new ShiningForceCDMagicItem("Dispel 4", "C6"),
-                new ShiningForceCDMagicItem("Muddle 4", "C7"),
-                new ShiningForceCDMagicItem("Desoul 4", "C8"),
-                new ShiningForceCDMagicItem("Sleep 4",  "C9"),
-                new ShiningForceCDMagicItem("Blaze 4",  "CB"),
-                new ShiningForceCDMagicItem("Freeze 4", "CC"),
-                new ShiningForceCDMagicItem("Bolt 4",   "CD"),
-                new ShiningForceCDMagicItem("Hell 4",   "CE"),
-                new ShiningForceCDMagicItem("Egress 4", "CA"),
-            });
+                return i;
+            }
         }
 
+        return -1;
+    }
+
+    private void LoadCover()
+    {
+        _picCover.Image?.Dispose();
+        _picCover.Image = null;
+        try
+        {
+            using var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(_game.CoverResource);
+            if (s is not null)
+            {
+                using var img = Image.FromStream(s);
+                _picCover.Image = new Bitmap(img);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Could not load cover art '{_game.CoverResource}': {ex.Message}");
+        }
+
+        SizeCover();
+    }
+
+    /// <summary>Keeps the cover picture box at the image's aspect ratio inside the panel.</summary>
+    private void SizeCover()
+    {
+        int w = _coverPanel.ClientSize.Width - _coverPanel.Padding.Horizontal;
+        if (_picCover.Image is { } img && img.Width > 0 && w > 0)
+        {
+            _picCover.Height = Math.Min((int)(w * (double)img.Height / img.Width),
+                Math.Max(120, _coverPanel.ClientSize.Height - _coverPanel.Padding.Vertical - 110));
+        }
+    }
+
+    // ---- Owner drawing ------------------------------------------------------------
+
+    private void PaintTitlePlate(object? sender, PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        var r = _lblTitle.ClientRectangle;
+        g.Clear(Theme.Window);
+        Theme.PaintWindow(g, Rectangle.Inflate(r, -3, -3), Theme.Accent.PlateTop, Theme.Accent.PlateBottom,
+            Theme.Silver, Theme.Gold, 10);
+
+        // Gold, slightly embossed lettering — a nod to the "Shining" logo.
+        var shadow = r;
+        shadow.Offset(2, 2);
+        const TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix;
+        TextRenderer.DrawText(g, _lblTitle.Text, _lblTitle.Font, shadow, Theme.GoldDeep, flags);
+        TextRenderer.DrawText(g, _lblTitle.Text, _lblTitle.Font, r, Theme.Gold, flags);
+    }
+
+    private void PaintCoverPanel(object? sender, PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        var frame = Rectangle.Inflate(_picCover.Bounds, 8, 8);
+        Theme.PaintWindow(g, frame, Theme.Void, Theme.Void, Theme.Silver, Theme.Accent.Glow, 10);
+
+        // Caption window under the box art.
+        var cap = new Rectangle(frame.X, frame.Bottom + 14, frame.Width, 92);
+        if (cap.Bottom > _coverPanel.ClientSize.Height)
+        {
+            return;
+        }
+
+        Theme.PaintWindow(g, cap);
+        using var titleFont = Theme.Body(12f, FontStyle.Bold | FontStyle.Italic);
+        using var smallFont = Theme.Body(9f);
+        var inner = Rectangle.Inflate(cap, -14, -10);
+        TextRenderer.DrawText(g, _game.Title, titleFont, inner, Theme.Gold,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        string console = _game.IsSegaCd ? "Sega CD save state" : "Genesis save state";
+        TextRenderer.DrawText(g, $"Kega Fusion · {console}", smallFont, inner, Theme.TextMuted,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.Bottom | TextFormatFlags.NoPrefix);
+    }
+
+    /// <summary>The name window from the status screen: accent plate with name, subtitle and level.</summary>
+    private void PaintNamePlate(object? sender, PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.Clear(Theme.Window);
+        var c = Current;
+        var r = Rectangle.Inflate(_namePlate.ClientRectangle, -3, -6);
+        r.Height -= 8;
+
+        if (_save is null || c is null)
+        {
+            Theme.PaintWindow(g, r);
+            using var hint = Theme.Body(12f, FontStyle.Italic);
+            string msg = _save is null
+                ? $"Open a {_game.Title} save state to begin  (File ▸ Open, or drag a file here)"
+                : "Choose a force member on the left.";
+            TextRenderer.DrawText(g, msg, hint, r, Theme.TextMuted,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            return;
+        }
+
+        Theme.PaintWindow(g, r, Theme.Accent.PlateTop, Theme.Accent.PlateBottom, Theme.Silver, Theme.Accent.Glow, 12);
+
+        using var nameFont = Theme.Body(20f, FontStyle.Bold);
+        using var subFont = Theme.Body(10.5f, FontStyle.Italic);
+        using var lvFont = Theme.Body(16f, FontStyle.Bold);
+        int nameH = (int)Math.Ceiling(nameFont.GetHeight(g));
+        var nameRect = new Rectangle(r.X + 22, r.Y + 8, r.Width - 40, nameH);
+        TextRenderer.DrawText(g, c.Name, nameFont, nameRect, Theme.Text, TextFormatFlags.Left | TextFormatFlags.NoPrefix);
+        var subRect = new Rectangle(r.X + 24, nameRect.Bottom, r.Width - 40, r.Bottom - nameRect.Bottom - 6);
+        TextRenderer.DrawText(g, _game.Subtitle(_save, c), subFont, subRect, Theme.Silver,
+            TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPrefix);
+
+        string lv = $"LV {_game.Get(_save, c, "level") ?? 0}";
+        TextRenderer.DrawText(g, lv, lvFont, new Rectangle(r.X, r.Y, r.Width - 28, r.Height), Theme.Gold,
+            TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+    }
+
+    /// <summary>Force member card: name, LV, HP and MP gauges like the battle status window.</summary>
+    private void DrawCharacterCard(object? sender, DrawItemEventArgs e)
+    {
+        var g = e.Graphics;
+        using (var bg = new SolidBrush(Theme.Window))
+        {
+            g.FillRectangle(bg, e.Bounds);
+        }
+
+        if (_save is null || e.Index < 0 || e.Index >= _chars.Count)
+        {
+            return;
+        }
+
+        var c = _chars[e.Index];
+        bool selected = (e.State & DrawItemState.Selected) != 0;
+        bool edited = _edited.Contains(c.Name);
+        var card = Rectangle.Inflate(e.Bounds, -4, -5);
+        if (selected)
+        {
+            Theme.PaintWindow(g, card, Theme.Accent.PlateTop, Theme.Accent.PlateBottom, Theme.Silver, Theme.Accent.Glow, 9);
+        }
+        else
+        {
+            Theme.PaintWindow(g, card, Theme.WindowHi, Theme.Window, Theme.SteelDeep, Theme.Window, 9);
+        }
+
+        using var small = Theme.Body(9f, FontStyle.Bold);
+        int nameH = (int)Math.Ceiling(_lstChars.Font.GetHeight(g));
+        int lineH = (int)Math.Ceiling(small.GetHeight(g));
+        int x = card.X + 16, w = card.Width - 32;
+
+        var nameRect = new Rectangle(x, card.Y + 7, w, nameH);
+        TextRenderer.DrawText(g, c.Name, _lstChars.Font, nameRect, Theme.Text, TextFormatFlags.Left | TextFormatFlags.NoPrefix);
+        if (edited)
+        {
+            int nw = TextRenderer.MeasureText(g, c.Name, _lstChars.Font, Size.Empty, TextFormatFlags.NoPrefix).Width;
+            TextRenderer.DrawText(g, "● edited", small, new Rectangle(x + nw + 4, nameRect.Y, w - nw, nameRect.Height),
+                Theme.Edited, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        }
+
+        TextRenderer.DrawText(g, $"LV {_game.Get(_save, c, "level") ?? 0}", _lstChars.Font, nameRect, Theme.Gold,
+            TextFormatFlags.Right | TextFormatFlags.NoPrefix);
 
         private void LogError(string errMsg)
         {
@@ -3145,41 +1550,24 @@ namespace ShiningEditor
             writer.Close();
         }
 
-        private void ClearErrorLog()
+    private static void DrawBar(Graphics g, Font f, string label, long? cur, long? max, Color color, Rectangle r)
+    {
+        int labelW = TextRenderer.MeasureText("MP  ", f).Width;
+        if (cur is null || max is null)
         {
-            // Create the file path
-            string filePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-            filePath += @"\errorlog.txt";
-
-            string errMessage = string.Empty;
-
-            // Delete the file
-            try
-            {
-                File.Delete(filePath);
-                MessageBox.Show("The error log has been cleared.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (IOException ioE)
-            {
-                errMessage = ioE.Message + " Occurred during call to ClearErroLog().";
-                MessageBox.Show(errMessage, "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            catch (UnauthorizedAccessException uaE)
-            {
-                errMessage = uaE.Message + " Occurred during call to ClearErroLog().";
-                MessageBox.Show(errMessage, "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            catch (Exception e)
-            {
-                errMessage = e.Message + " Occurred during call to ClearErroLog().";
-                MessageBox.Show(errMessage, "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            TextRenderer.DrawText(g, label, f, new Rectangle(r.X, r.Y, labelW, r.Height - 4), Theme.SteelDeep,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, "—", f, new Rectangle(r.X, r.Y, r.Width, r.Height - 4), Theme.SteelDeep,
+                TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+            return;
         }
 
-        private void ResetSfcdCaches()
+        TextRenderer.DrawText(g, label, f, new Rectangle(r.X, r.Y, labelW, r.Height - 4), Theme.Silver,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        var bar = new Rectangle(r.X + labelW, r.Bottom - 6, r.Width - labelW, 4);
+        using (var empty = new SolidBrush(Theme.BarEmpty))
         {
-            _sfcdClassTableLoadedFromPath = null;
-            _sfcdClassTable = null;
+            g.FillRectangle(empty, bar);
         }
 
         private string GetValueByOffset(string offset, int bytesToRead)
@@ -3680,14 +2068,11 @@ namespace ShiningEditor
             PopulateShiningCharacterDetails(charItem);
         }
 
-        private ShiningForceItem GetShiningForceItem(string id)
+    private void ReloadFromDisk()
+    {
+        if (_save is null)
         {
-            return shiningForceItemsList.FirstOrDefault(i => i.ID.ToUpper() == id.ToUpper());
-        }
-
-        private ShiningForceMagicItem GetShiningForceMagicItem(string id)
-        {
-            return shiningForceMagicList.FirstOrDefault(m => m.ID.ToUpper() == id.ToUpper());
+            return;
         }
 
         private void UpdateShiningForceSaveState()
@@ -3826,25 +2211,29 @@ namespace ShiningEditor
                 }
             }
 
-            MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            ResetShiningForceControls(false);
-            PopulateShiningForceCurrentGold();
+        var answer = MessageBox.Show(this,
+            $"You have unsaved changes ({DescribeEdited()}).\n\nSave them before {action}?",
+            "Unsaved changes", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
 
-            if (charItem != null)
-            {
-                PopulateShiningForceCharacterDetails(charItem);
-            }
-        }
-
-        private ShiningForce2Item GetShiningForce2Item(string id)
+        return answer switch
         {
-            return shiningForce2ItemsList.FirstOrDefault(i => i.ID.ToUpper() == id.ToUpper());
-        }
+            DialogResult.Yes => SaveFile(),
+            DialogResult.No => true,
+            _ => false,
+        };
+    }
 
-        private ShiningForce2MagicItem GetShiningForce2MagicItem(string id)
-        {
-            return shiningForce2MagicList.FirstOrDefault(m => m.ID.ToUpper() == id.ToUpper());
-        }
+    private void CloseSave()
+    {
+        _save = null;
+        _bound = null;
+        _edited.Clear();
+        _chars.Clear();
+        _lstChars.Items.Clear();
+        _itemList.Items.Clear();
+        _spellList.Items.Clear();
+        UpdateState();
+    }
 
         private void UpdateShiningForce2SaveState()
         {
@@ -4034,55 +2423,32 @@ namespace ShiningEditor
                 }
             }
 
-            MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            ResetShiningForce2Controls(false);
-            PopulateShiningForce2CurrentGold();
-
-            if (charItem != null)
-            {
-                PopulateShiningForce2CharacterDetails(charItem);
-            }
-        }
-
-        // Returns 1..4, or 0 if unknown
-        private int GetShiningForceCDBookNumber()
+        int idx = _chars.FindIndex(c => c.Name == name);
+        if (idx >= 0)
         {
-            byte raw = GetBytesByOffset(SHINING_FORCE_CD_BOOK_INDEX_OFFSET, 1)[0];
-            LogError($"[SFCD] Book byte @0x{SHINING_FORCE_CD_BOOK_INDEX_OFFSET} = 0x{raw:X2} ({raw})");
-
-            return raw is >= 1 and <= 4 ? raw : 0;
+            _lstChars.SelectedIndex = idx;
         }
+    }
 
-        private void DetermineShiningForceCDCurrentBook()
+    private void LoadSelectedCharacter()
+    {
+        var c = Current;
+        _bound = c;
+        _loading = true;
+        foreach (var (key, editor) in _fieldEditors)
         {
-            int bookNum = GetShiningForceCDBookNumber();
-
-            _shiningForceCDBook = bookNum switch
+            long? v = _save is not null && c is not null ? _game.Get(_save, c, key) : null;
+            switch (editor)
             {
-                1 => ShiningForceCDBook.Book1TowardsTheRootOfEvil,
-                2 => ShiningForceCDBook.Book2TheEvilGodAwakes,
-                3 => ShiningForceCDBook.Book3ANewChallenge,
-                4 => ShiningForceCDBook.Book4TheLastBattle,
-                _ => ShiningForceCDBook.UnknownBook
-            };
-        }
-
-        private string GetShiningForceCDCurrentBookString()
-        {
-            switch (_shiningForceCDBook)
-            {
-                case ShiningForceCDBook.Book1TowardsTheRootOfEvil:
-                    return "Book 1: Towards the Root of Evil";
-                case ShiningForceCDBook.Book2TheEvilGodAwakes:
-                    return "Book 2: The Evil God Awakes";
-                case ShiningForceCDBook.Book3ANewChallenge:
-                    return "Book 3: A New Challenge";
-                case ShiningForceCDBook.Book4TheLastBattle:
-                    return "Book 4: The Last Battle";
-                default:
-                    return "Unknown Book";
-            }
-        }
+                case NumericUpDown num:
+                    // Fields a character doesn't have (e.g. Hiro's MP) are hidden and explained.
+                    bool missing = v is null && c is not null;
+                    num.Visible = !missing;
+                    num.Value = v is long n ? Math.Clamp(n, (long)num.Minimum, (long)num.Maximum) : 0;
+                    if (_fieldHints.TryGetValue(key, out var hint))
+                    {
+                        hint.Text = missing ? $"— not used by {c!.Name}" : "";
+                    }
 
         private static string Hex(int value) => value.ToString("X");
 
@@ -4135,41 +2501,24 @@ namespace ShiningEditor
             return shiningForceCDMagicList.FirstOrDefault(i => i.ID.ToUpper() == id.ToUpper());
         }
 
-        /// <summary>
-        /// Returns SDMN, WARR, PLDN, WIZ, VICR, etc for the character record at <paramref name="characterBaseOffset"/>.
-        /// </summary>
-        private string GetClassCode(int characterBaseOffset)
+        _loading = false;
+        _namePlate.Invalidate();
+        RenderSlots(c);
+    }
+
+    private void RenderSlots(CharacterDef? c)
+    {
+        _itemList.BeginUpdate();
+        _spellList.BeginUpdate();
+        _itemList.Items.Clear();
+        _spellList.Items.Clear();
+
+        if (_save is not null && c is not null && _game.HasInventory)
         {
-            EnsureSfcdClassTableLoaded();
-
-            byte classId = GetBytesByOffset(characterBaseOffset + SfcdClassIdOffset, 1)[0];
-
-            if (_sfcdClassTable == null || _sfcdClassTable.Count == 0)
+            var items = _game.Items(_save, c);
+            foreach (var it in items)
             {
-                return "????";
-            }
-
-            if (classId >= _sfcdClassTable.Count)
-            {
-                return $"ID:{classId}";
-            }
-
-            return _sfcdClassTable[classId];
-        }
-
-
-        private void EnsureSfcdClassTableLoaded()
-        {
-            string path = saveStateFileTb.Text;
-
-            // Skip only if we already have a valid table for THIS file
-            if (_sfcdClassTable != null
-                && _sfcdClassTable.Count > 0
-                && _sfcdClassTableLoadedFromPath != null
-                && string.Equals(_sfcdClassTableLoadedFromPath, path, StringComparison.OrdinalIgnoreCase)
-                && _sfcdClassTable.Contains("SDMN"))
-            {
-                return;
+                _itemList.Items.Add(it);
             }
 
             _sfcdClassTableLoadedFromPath = path;
@@ -4177,77 +2526,27 @@ namespace ShiningEditor
             // Read file once (it's ~1.1MB; totally fine)
             byte[] all = File.ReadAllBytes(path);
 
-            // Find the signature: 04 SDMN 04 HERO 04 KNTE 04 PLDN
-            int start = FindClassTableOffsetBySignature(all);
-            if (start < 0)
+            var spells = _game.Spells(_save, c);
+            foreach (var sp in spells)
             {
-                _sfcdClassTable = new List<string>(); // stays empty => "????"
-                return;
+                _spellList.Items.Add(sp);
             }
 
-            _sfcdClassTable = ReadLenPrefixedStringTableFromBytes(all, start, maxItems: 200);
+            if (spells.Count == 0)
+            {
+                _spellList.Items.Add($"{c.Name} has no spells.");
+            }
 
-            LogError($"[SFCD] Class table loaded: {_sfcdClassTable.Count} entries. First={_sfcdClassTable[0]}");
+            int carried = items.Count(i => !i.Empty);
+            _itemsNote.Text = $"{carried} item(s) carried — view only." +
+                              (items.Any(i => i.Equipped) ? "  Gold = equipped." : "");
+            int known = spells.Count(s => !s.Empty);
+            _magicNote.Text = $"{known} spell(s) learned — view only." +
+                              (_game.MagicNote is { } note ? "  " + note : "");
         }
-
-        private static List<string> ReadLenPrefixedStringTableFromBytes(byte[] all, int startOffset, int maxItems)
+        else
         {
-            var list = new List<string>(maxItems);
-            int offset = startOffset;
-
-            for (int i = 0; i < maxItems; i++)
-            {
-                if (offset < 0 || offset >= all.Length)
-                    break;
-
-                byte len = all[offset];
-
-                // class codes are short; table also includes other strings, but still usually small
-                if (len == 0 || len > 20)
-                    break;
-
-                if (offset + 1 + len > all.Length)
-                    break;
-
-                string s = Encoding.ASCII.GetString(all, offset + 1, len).TrimEnd('\0', ' ');
-
-                if (string.IsNullOrWhiteSpace(s))
-                    break;
-
-                list.Add(s);
-                offset += 1 + len;
-            }
-
-            return list;
-        }
-
-        /// <summary>
-        /// Scans the file for: 04 SDMN 04 HERO 04 KNTE 04 PLDN
-        /// and returns the offset of the first length byte (0x04) if found.
-        /// </summary>
-        private static int FindClassTableOffsetBySignature(byte[] all)
-        {
-            byte[] sig =
-            {
-                0x04, (byte)'S', (byte)'D', (byte)'M', (byte)'N',
-                0x04, (byte)'H', (byte)'E', (byte)'R', (byte)'O',
-                0x04, (byte)'K', (byte)'N', (byte)'T', (byte)'E',
-                0x04, (byte)'P', (byte)'L', (byte)'D', (byte)'N',
-            };
-
-            for (int i = 0; i <= all.Length - sig.Length; i++)
-            {
-                bool match = true;
-                for (int j = 0; j < sig.Length; j++)
-                {
-                    if (all[i + j] != sig[j]) { match = false; break; }
-                }
-
-                if (match)
-                    return i;
-            }
-
-            return -1;
+            _itemsNote.Text = _magicNote.Text = "";
         }
 
         private void UpdateShiningForceCDSaveState()
@@ -4470,12 +2769,11 @@ namespace ShiningEditor
                 => NameByBook.TryGetValue(book, out var n) ? n : DefaultName;
         }
 
-        private sealed class CharComboItem
-        {
-            public string Name { get;  set; } = "";
-            public int Offset { get; set; }
-            public string SlotId { get; set; } = "";
-        }
-        #endregion
+    private void UpdateTitle()
+    {
+        const string baseTitle = "Shining Editor";
+        Text = _save is null
+            ? $"{baseTitle} — {_game.Title}"
+            : $"{baseTitle} — {_game.Title} — {Path.GetFileName(_save.Path)}{(Dirty ? " *" : "")}";
     }
 }
