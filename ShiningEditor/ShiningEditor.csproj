@@ -6,6 +6,20 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
+
+  <!-- Legacy per-game item classes, superseded by Game\*.cs. Safe to delete from disk. -->
+  <ItemGroup>
+    <Compile Remove="ShiningCharacterItem.cs;ShiningItem.cs;ShiningForceCharacterItem.cs;ShiningForceItem.cs;ShiningForceMagicItem.cs;ShiningForce2CharacterItem.cs;ShiningForce2Item.cs;ShiningForce2MagicItem.cs;ShiningForceCDCharacterItem.cs;ShiningForceCDItem.cs;ShiningForceCDMagicItem.cs" />
+  </ItemGroup>
+
+  <!-- Box art shown beside the party list, embedded so the exe stands alone. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Sitdlogo.jpg" LogicalName="covers.sitd.jpg" />
+    <EmbeddedResource Include="13492-shining-force-genesis-front-cover.jpg" LogicalName="covers.sf.jpg" />
+    <EmbeddedResource Include="shiningforce2.jpg" LogicalName="covers.sf2.jpg" />
+    <EmbeddedResource Include="shiningForceCDCover.jpg" LogicalName="covers.sfcd.jpg" />
+  </ItemGroup>
 
 </Project>
