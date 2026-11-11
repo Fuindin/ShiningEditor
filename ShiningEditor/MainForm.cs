@@ -48,8 +48,19 @@ namespace ShiningEditor
 
         // One known good class-table start. If you later confirm a different offset for your format/version,
         // just change this constant.
-        private const int SfcdClassTableOffset = 0x0D76A0;        
-        
+        private const int SfcdClassTableOffset = 0x0D76A0;
+
+        // ── Save-state file validation / backup ──────────────────────────────
+        // Kega Fusion save states begin with the ASCII signature "GST". The RAM
+        // dump size distinguishes the console: Genesis (SID/SF/SF2) vs Sega CD (SFCD).
+        private static readonly byte[] GST_MAGIC = { 0x47, 0x53, 0x54 }; // "GST"
+        private const long GST_SIZE_GENESIS = 140408;
+        private const long GST_SIZE_SEGA_CD = 1120235;
+
+        // Files backed up (once) this session, so we don't re-snapshot on every edit.
+        private readonly HashSet<string> _backedUpThisSession =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         private AppPanel activePanel;
         private List<ShiningForceItem> shiningForceItemsList;
         private List<ShiningForceMagicItem> shiningForceMagicList;
@@ -67,11 +78,13 @@ namespace ShiningEditor
         #endregion
 
         #region - Class Properties -
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool FileLoaded
         {
             get { return fileLoaded; }
             set { fileLoaded = value; }
         }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public AppPanel ActivePanel
         {
             get { return activePanel; }
@@ -92,6 +105,77 @@ namespace ShiningEditor
             ActivePanel = AppPanel.None;
             ShowPanel(AppPanel.All, false);
             FileLoaded = false;
+            WireDigitOnlyInputs();
+            SetUpdateButtonsEnabled(false);   // nothing to update until a file is loaded
+        }
+
+        // ── Input safety helpers ─────────────────────────────────────────────
+        // Restrict every "New …" stat/gold field to digits, so a non-numeric value
+        // can't be typed in the first place.
+        private void WireDigitOnlyInputs()
+        {
+            foreach (TextBox tb in AllControls(this).OfType<TextBox>())
+            {
+                if (tb.Name.Contains("New") && tb.Name.EndsWith("Tb"))
+                {
+                    tb.KeyPress -= DigitsOnly_KeyPress;   // avoid double-wiring
+                    tb.KeyPress += DigitsOnly_KeyPress;
+                }
+            }
+        }
+
+        private static IEnumerable<Control> AllControls(Control root)
+        {
+            foreach (Control c in root.Controls)
+            {
+                yield return c;
+                foreach (Control d in AllControls(c))
+                {
+                    yield return d;
+                }
+            }
+        }
+
+        private void DigitsOnly_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // allow control chars (backspace, etc.) and digits only
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void SetUpdateButtonsEnabled(bool enabled)
+        {
+            updSaveStateBtn.Enabled = enabled;
+            updShiningForceSaveStateBtn.Enabled = enabled;
+            shiningForce2UpdateSaveStateBtn.Enabled = enabled;
+            shiningForceCDUpdateSaveStateBtn.Enabled = enabled;
+        }
+
+        /// <summary>
+        /// Reads a "New …" field. Blank = leave unchanged (returns false, no message).
+        /// A non-numeric or out-of-range entry shows one clear message and returns false,
+        /// so an over-large value can't silently truncate to the field's byte width.
+        /// </summary>
+        private bool TryReadField(TextBox tb, string label, long min, long max, out long value)
+        {
+            value = 0;
+            string text = tb.Text.Trim();
+            if (text.Length == 0)
+            {
+                return false;
+            }
+
+            if (!long.TryParse(text, out value) || value < min || value > max)
+            {
+                value = 0;
+                MessageBox.Show($"{label} must be a whole number from {min:N0} to {max:N0}.",
+                    "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            return true;
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -103,7 +187,8 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningInTheDarkness;
             saveStateFileTb.Text = string.Empty;
-            ResetShiningControls(true);
+            SetUpdateButtonsEnabled(false);
+            ResetShiningControls(true, true);
             PopulateShiningCharacterList();
             ShowPanel(AppPanel.ShiningInTheDarkness, true);
         }
@@ -112,6 +197,7 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningForce;
             saveStateFileTb.Text = string.Empty;
+            SetUpdateButtonsEnabled(false);
             ResetShiningForceControls(true);
             PopulateShiningForceCharacterList();
             ShowPanel(AppPanel.ShiningForce, true);
@@ -121,6 +207,7 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningForce2;
             saveStateFileTb.Text = string.Empty;
+            SetUpdateButtonsEnabled(false);
             ResetShiningForce2Controls(true);
             PopulateShiningForce2CharacterList();
             ShowPanel(AppPanel.ShiningForce2, true);
@@ -130,6 +217,7 @@ namespace ShiningEditor
         {
             ActivePanel = AppPanel.ShiningForceCD;
             saveStateFileTb.Text = string.Empty;
+            SetUpdateButtonsEnabled(false);
             ResetShiningForceCDControls(true, true);            
             ShowPanel(AppPanel.ShiningForceCD, true);
         }
@@ -164,8 +252,19 @@ namespace ShiningEditor
                 // Show the open file dialog and capture the selected file
                 if (openFD.ShowDialog() != DialogResult.Cancel)
                 {
+                    if (!ValidateSaveStateFile(openFD.FileName, out string validationError))
+                    {
+                        MessageBox.Show(validationError, "Invalid save state file",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        saveStateFileTb.Text = string.Empty;
+                        FileLoaded = false;
+                        return;
+                    }
+
                     saveStateFileTb.Text = openFD.FileName;
                     FileLoaded = true;
+                    EnsureBufferLoaded();   // load the whole file into memory once
+                    SetUpdateButtonsEnabled(true);
                     switch (ActivePanel)
                     {
                         case AppPanel.ShiningInTheDarkness:
@@ -213,7 +312,7 @@ namespace ShiningEditor
             {
                 if (FileLoaded)
                 {
-                    ResetShiningControls(false);
+                    ResetShiningControls(false, false);
                     PopulateShiningCharacterDetails(shiningCharacterCmb.SelectedItem as ShiningCharacterItem);
                 }
                 else
@@ -354,15 +453,19 @@ namespace ShiningEditor
             control.Visible = show;
         }        
 
-        private void ResetShiningControls(bool resetCharacterList)
+        private void ResetShiningControls(bool resetCharacterList = false, bool resetGold = false)
         {
             if (resetCharacterList)
             {
                 shiningCharacterCmb.SelectedIndex = -1;
             }
 
-            shiningCurGoldTb.Text = string.Empty;
-            shiningNewGoldTb.Text = string.Empty;
+            if (resetGold)
+            {
+                shiningCurGoldTb.Text = string.Empty;
+                shiningNewGoldTb.Text = string.Empty;
+            }
+            
             shiningLevelTb.Text = string.Empty;
             shiningExpTb.Text = string.Empty;
             shiningNewExpTb.Text = string.Empty;
@@ -562,521 +665,34 @@ namespace ShiningEditor
             shiningForceMagicLB.Items.Clear();
         }
 
+        private ShiningForceCharacterItem MakeSfChar(string name, int b) =>
+            new ShiningForceCharacterItem(
+                name,
+                Hex(b + 0x00), Hex(b + 0x01), Hex(b + 0x02), Hex(b + 0x03), Hex(b + 0x04),
+                Hex(b + 0x06),                                   // experience
+                Hex(b + 0x08), Hex(b + 0x0A),                    // max HP, current HP
+                Hex(b + 0x0B), Hex(b + 0x0C),                    // current MP, max MP
+                new[] { Hex(b + 0x0F), Hex(b + 0x10), Hex(b + 0x11), Hex(b + 0x12) },
+                new[] { Hex(b + 0x13), Hex(b + 0x14), Hex(b + 0x15), Hex(b + 0x16) });
+
         private void PopulateShiningForceCharacterList()
         {
             shiningForceCharacterCmb.Items.Clear();
-
-            ShiningForceCharacterItem heroItem = new ShiningForceCharacterItem(
-                "Hero",
-                "C115",
-                "C116",
-                "C117",
-                "C118",
-                "C119",
-                "C11B",
-                "C11D",
-                "C11F",
-                "C120",
-                "C121",
-                new string[] {"C124", "C125", "C126", "C127"},
-                new string[] {"C128", "C129", "C12A", "C12B"}
-            );
-            shiningForceCharacterCmb.Items.Add(heroItem);
-
-            ShiningForceCharacterItem maeItem = new ShiningForceCharacterItem(
-                "Mae",
-                "C13D",
-                "C13E",
-                "C13F",
-                "C140",
-                "C141",
-                "C143",
-                "C145",
-                "C147",
-                "C148",
-                "C149",
-                new string[] { "C14C", "C14D", "C14E", "C14F" },
-                new string[] { "C150", "C151", "C152", "C153" }
-            );
-            shiningForceCharacterCmb.Items.Add(maeItem);
-
-            ShiningForceCharacterItem pelleItem = new ShiningForceCharacterItem(
-                "Pelle",
-                "C165",
-                "C166",
-                "C167",
-                "C168",
-                "C169",
-                "C16B",
-                "C16D",
-                "C16F",
-                "C170",
-                "C171",
-                new string[] { "C174", "C175", "C176", "C177" },
-                new string[] { "C178", "C179", "C17A", "C17B" }
-            );
-            shiningForceCharacterCmb.Items.Add(pelleItem);
-
-            ShiningForceCharacterItem kenItem = new ShiningForceCharacterItem(
-                "Ken",
-                "C18D",
-                "C18E",
-                "C18F",
-                "C190",
-                "C191",
-                "C193",
-                "C195",
-                "C197",
-                "C198",
-                "C199",
-                new string[] { "C19C", "C19D", "C19E", "C19F" },
-                new string[] { "C1A0", "C1A1", "C1A2", "C1A3" }
-            );
-            shiningForceCharacterCmb.Items.Add(kenItem);
-
-            ShiningForceCharacterItem vankarItem = new ShiningForceCharacterItem(
-                "Vankar",
-                "C1B5",
-                "C1B6",
-                "C1B7",
-                "C1B8",
-                "C1B9",
-                "C1BB",
-                "C1BD",
-                "C1BF",
-                "C1C0",
-                "C1C1",
-                new string[] { "C1C4", "C1C5", "C1C6", "C1C7" },
-                new string[] { "C1C8", "C1C9", "C1CA", "C1CB" }
-            );
-            shiningForceCharacterCmb.Items.Add(vankarItem);
-
-            ShiningForceCharacterItem earnestItem = new ShiningForceCharacterItem(
-                "Earnest",
-                "C1DD",
-                "C1DE",
-                "C1DF",
-                "C1E0",
-                "C1E1",
-                "C1E3",
-                "C1E5",
-                "C1E7",
-                "C1E8",
-                "C1E9",
-                new string[] { "C1EC", "C1ED", "C1EE", "C1EF" },
-                new string[] { "C1F0", "C1F1", "C1F2", "C1F3" }
-            );
-            shiningForceCharacterCmb.Items.Add(earnestItem);
-
-            ShiningForceCharacterItem arthurItem = new ShiningForceCharacterItem(
-                "Aurthur",
-                "C205",
-                "C206",
-                "C207",
-                "C208",
-                "C209",
-                "C20B",
-                "C20D",
-                "C20F",
-                "C210",
-                "C211",
-                new string[] { "C214", "C215", "C216", "C217" },
-                new string[] { "C218", "C219", "C21A", "C21B" }
-            );
-            shiningForceCharacterCmb.Items.Add(arthurItem);
-
-            ShiningForceCharacterItem gortItem = new ShiningForceCharacterItem(
-                "Gort",
-                "C22D",
-                "C22E",
-                "C22F",
-                "C230",
-                "C231",
-                "C233",
-                "C235",
-                "C237",
-                "C238",
-                "C239",
-                new string[] { "C23C", "C23D", "C23E", "C23F" },
-                new string[] { "C240", "C241", "C242", "C243" }
-            );
-            shiningForceCharacterCmb.Items.Add(gortItem);
-
-            ShiningForceCharacterItem lukeItem = new ShiningForceCharacterItem(
-                "Luke",
-                "C255",
-                "C256",
-                "C257",
-                "C258",
-                "C259",
-                "C25B",
-                "C25D",
-                "C25F",
-                "C260",
-                "C261",
-                new string[] { "C264", "C265", "C266", "C267" },
-                new string[] { "C268", "C269", "C26A", "C26B" }
-            );
-            shiningForceCharacterCmb.Items.Add(lukeItem);
-
-            ShiningForceCharacterItem guntzItem = new ShiningForceCharacterItem(
-                "Guntz",
-                "C27D",
-                "C27E",
-                "C27F",
-                "C280",
-                "C281",
-                "C283",
-                "C285",
-                "C287",
-                "C288",
-                "C289",
-                new string[] { "C28C", "C28D", "C28E", "C28F" },
-                new string[] { "C290", "C291", "C292", "C293" }
-            );
-            shiningForceCharacterCmb.Items.Add(guntzItem);
-
-            ShiningForceCharacterItem anriItem = new ShiningForceCharacterItem(
-                "Anri",
-                "C2A5",
-                "C2A6",
-                "C2A7",
-                "C2A8",
-                "C2A9",
-                "C2AB",
-                "C2AD",
-                "C2AF",
-                "C2B0",
-                "C2B1",
-                new string[] { "C2B4", "C2B5", "C2B6", "C2B7" },
-                new string[] { "C2B8", "C2B9", "C2BA", "C2BB" }
-            );
-            shiningForceCharacterCmb.Items.Add(anriItem);
-
-            ShiningForceCharacterItem alefItem = new ShiningForceCharacterItem(
-                "Alef",
-                "C2CD",
-                "C2CE",
-                "C2CF",
-                "C2D0",
-                "C2D1",
-                "C2D3",
-                "C2D5",
-                "C2D7",
-                "C2D8",
-                "C2D9",
-                new string[] { "C2DC", "C2DD", "C2DE", "C2DF" },
-                new string[] { "C2E0", "C2E1", "C2E2", "C2E3" }
-            );
-            shiningForceCharacterCmb.Items.Add(alefItem);
-
-            ShiningForceCharacterItem taoItem = new ShiningForceCharacterItem(
-                "Tao",
-                "C2F5",
-                "C2F6",
-                "C2F7",
-                "C2F8",
-                "C2F9",
-                "C2FB",
-                "C2FD",
-                "C2FF",
-                "C300",
-                "C301",
-                new string[] { "C304", "C305", "C306", "C307" },
-                new string[] { "C308", "C309", "C30A", "C30B" }
-            );
-            shiningForceCharacterCmb.Items.Add(taoItem);
-
-            ShiningForceCharacterItem domingoItem = new ShiningForceCharacterItem(
-                "Domingo",
-                "C31D",
-                "C31E",
-                "C31F",
-                "C320",
-                "C321",
-                "C323",
-                "C325",
-                "C327",
-                "C328",
-                "C329",
-                new string[] { "C32C", "C32D", "C32E", "C32F" },
-                new string[] { "C330", "C331", "C332", "C333" }
-            );
-            shiningForceCharacterCmb.Items.Add(domingoItem);
-
-            ShiningForceCharacterItem loweItem = new ShiningForceCharacterItem(
-                "Lowe",
-                "C345",
-                "C346",
-                "C347",
-                "C348",
-                "C349",
-                "C34B",
-                "C34D",
-                "C34F",
-                "C350",
-                "C351",
-                new string[] { "C354", "C355", "C356", "C357" },
-                new string[] { "C358", "C359", "C35A", "C35B" }
-            );
-            shiningForceCharacterCmb.Items.Add(loweItem);
-
-            ShiningForceCharacterItem khrisItem = new ShiningForceCharacterItem(
-                "Khris",
-                "C36D",
-                "C36E",
-                "C36F",
-                "C370",
-                "C371",
-                "C373",
-                "C375",
-                "C377",
-                "C378",
-                "C379",
-                new string[] { "C37C", "C37D", "C37E", "C37F" },
-                new string[] { "C380", "C381", "C382", "C383" }
-            );
-            shiningForceCharacterCmb.Items.Add(khrisItem);
-
-            ShiningForceCharacterItem torasuItem = new ShiningForceCharacterItem(
-                "Torasu",
-                "C395",
-                "C396",
-                "C397",
-                "C398",
-                "C399",
-                "C39B",
-                "C39D",
-                "C39F",
-                "C3A0",
-                "C3A1",
-                new string[] { "C3A4", "C3A5", "C3A6", "C3A7" },
-                new string[] { "C3A8", "C3A9", "C3AA", "C3AB" }
-            );
-            shiningForceCharacterCmb.Items.Add(torasuItem);
-
-            ShiningForceCharacterItem gongItem = new ShiningForceCharacterItem(
-                "Gong",
-                "C3BD",
-                "C3BE",
-                "C3BF",
-                "C3C0",
-                "C3C1",
-                "C3C3",
-                "C3C5",
-                "C3C7",
-                "C3C8",
-                "C3C9",
-                new string[] { "C3CC", "C3CD", "C3CE", "C3CF" },
-                new string[] { "C3D0", "C3D1", "C3D2", "C3D3" }
-            );
-            shiningForceCharacterCmb.Items.Add(gongItem);
-
-            ShiningForceCharacterItem dianeItem = new ShiningForceCharacterItem(
-                "Diane",
-                "C3E5",
-                "C3E6",
-                "C3E7",
-                "C3E8",
-                "C3E9",
-                "C3EB",
-                "C3ED",
-                "C3EF",
-                "C3F0",
-                "C3F1",
-                new string[] { "C3F4", "C3F5", "C3F6", "C3F7" },
-                new string[] { "C3F8", "C3F9", "C3FA", "C3FB" }
-            );
-            shiningForceCharacterCmb.Items.Add(dianeItem);
-
-            ShiningForceCharacterItem hansItem = new ShiningForceCharacterItem(
-                "Hans",
-                "C40D",
-                "C40E",
-                "C40F",
-                "C410",
-                "C411",
-                "C413",
-                "C415",
-                "C417",
-                "C418",
-                "C419",
-                new string[] { "C41C", "C41D", "C41E", "C41F" },
-                new string[] { "C420", "C421", "C422", "C423" }
-            );
-            shiningForceCharacterCmb.Items.Add(hansItem);
-
-            ShiningForceCharacterItem lyleItem = new ShiningForceCharacterItem(
-                "Lyle",
-                "C435",
-                "C436",
-                "C437",
-                "C438",
-                "C439",
-                "C43B",
-                "C43D",
-                "C43F",
-                "C440",
-                "C441",
-                new string[] { "C444", "C445", "C446", "C447" },
-                new string[] { "C448", "C449", "C44A", "C44B" }
-            );
-            shiningForceCharacterCmb.Items.Add(lyleItem);
-
-            ShiningForceCharacterItem amonItem = new ShiningForceCharacterItem(
-                "Amon",
-                "C45D",
-                "C45E",
-                "C45F",
-                "C460",
-                "C461",
-                "C463",
-                "C465",
-                "C467",
-                "C468",
-                "C469",
-                new string[] { "C46C", "C46D", "C46E", "C46F" },
-                new string[] { "C470", "C471", "C472", "C473" }
-            );
-            shiningForceCharacterCmb.Items.Add(amonItem);
-
-            ShiningForceCharacterItem balbaroyItem = new ShiningForceCharacterItem(
-                "Balbaroy",
-                "C485",
-                "C486",
-                "C487",
-                "C488",
-                "C489",
-                "C48B",
-                "C48D",
-                "C48F",
-                "C490",
-                "C491",
-                new string[] { "C494", "C495", "C496", "C497" },
-                new string[] { "C498", "C499", "C49A", "C49B" }
-            );
-            shiningForceCharacterCmb.Items.Add(balbaroyItem);
-
-            ShiningForceCharacterItem kokichiItem = new ShiningForceCharacterItem(
-                "Kokichi",
-                "C4AD",
-                "C4AE",
-                "C4AF",
-                "C4B0",
-                "C4B1",
-                "C4B3",
-                "C4B5",
-                "C4B7",
-                "C4B8",
-                "C4B9",
-                new string[] { "C4BC", "C4BD", "C4BE", "C4BF" },
-                new string[] { "C4C0", "C4C1", "C4C2", "C4C3" }
-            );
-            shiningForceCharacterCmb.Items.Add(kokichiItem);
-
-            ShiningForceCharacterItem bleuItem = new ShiningForceCharacterItem(
-                "Bleu",
-                "C4D5",
-                "C4D6",
-                "C4D7",
-                "C4D8",
-                "C4D9",
-                "C4DB",
-                "C4DD",
-                "C4DF",
-                "C4E0",
-                "C4E1",
-                new string[] { "C4E4", "C4E5", "C4E6", "C4E7" },
-                new string[] { "C4E8", "C4E9", "C4EA", "C4EB" }
-            );
-            shiningForceCharacterCmb.Items.Add(bleuItem);
-
-            ShiningForceCharacterItem adamItem = new ShiningForceCharacterItem(
-                "Adam",
-                "C4FD",
-                "C4FE",
-                "C4FF",
-                "C500",
-                "C501",
-                "C503",
-                "C505",
-                "C507",
-                "C508",
-                "C509",
-                new string[] { "C50C", "C50D", "C50E", "C50F" },
-                new string[] { "C510", "C511", "C512", "C513" }
-            );
-            shiningForceCharacterCmb.Items.Add(adamItem);
-
-            ShiningForceCharacterItem zyloItem = new ShiningForceCharacterItem(
-                "Zylo",
-                "C525",
-                "C526",
-                "C527",
-                "C528",
-                "C529",
-                "C52B",
-                "C52D",
-                "C52F",
-                "C530",
-                "C531",
-                new string[] { "C534", "C535", "C536", "C537" },
-                new string[] { "C538", "C539", "C53A", "C53B" }
-            );
-            shiningForceCharacterCmb.Items.Add(zyloItem);
-
-            ShiningForceCharacterItem musashiItem = new ShiningForceCharacterItem(
-                "Musashi",
-                "C54D",
-                "C54E",
-                "C54F",
-                "C550",
-                "C551",
-                "C553",
-                "C555",
-                "C557",
-                "C558",
-                "C559",
-                new string[] { "C55C", "C55D", "C55E", "C55F" },
-                new string[] { "C560", "C561", "C562", "C563" }
-            );
-            shiningForceCharacterCmb.Items.Add(musashiItem);
-
-            ShiningForceCharacterItem hanzouItem = new ShiningForceCharacterItem(
-                "Hanzou",
-                "C575",
-                "C576",
-                "C577",
-                "C578",
-                "C579",
-                "C57B",
-                "C57D",
-                "C57F",
-                "C580",
-                "C581",
-                new string[] { "C584", "C585", "C586", "C587" },
-                new string[] { "C588", "C589", "C58A", "C58B" }
-            );
-            shiningForceCharacterCmb.Items.Add(hanzouItem);
-
-            ShiningForceCharacterItem jogurtItem = new ShiningForceCharacterItem(
-                "Jogurt",
-                "C59D",
-                "C59E",
-                "C59F",
-                "C5A0",
-                "C5A1",
-                "C5A3",
-                "C5A5",
-                "C5A7",
-                "C5A8",
-                "C5A9",
-                new string[] { "C5AC", "C5AD", "C5AE", "C5AF" },
-                new string[] { "C5B0", "C5B1", "C5B2", "C5B3" }
-            );
-            shiningForceCharacterCmb.Items.Add(jogurtItem);
-
             shiningForceCharacterCmb.DisplayMember = "Name";
+
+            // Each character record is 0x28 bytes; fields sit at fixed sub-offsets.
+            string[] names =
+            {
+                "Hero", "Mae", "Pelle", "Ken", "Vankar", "Earnest", "Aurthur", "Gort", "Luke",
+                "Guntz", "Anri", "Alef", "Tao", "Domingo", "Lowe", "Khris", "Torasu", "Gong",
+                "Diane", "Hans", "Lyle", "Amon", "Balbaroy", "Kokichi", "Bleu", "Adam", "Zylo",
+                "Musashi", "Hanzou", "Jogurt"
+            };
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                shiningForceCharacterCmb.Items.Add(MakeSfChar(names[i], 0xC115 + i * 0x28));
+            }
         }
 
         private void PopulateShiningForceItemsList()
@@ -1711,431 +1327,42 @@ namespace ShiningEditor
             shiningForce2MagicListBox.Items.Clear();
         }
 
+        private ShiningForce2CharacterItem MakeSf2Char(string name, int b) =>
+            new ShiningForce2CharacterItem(
+                name,
+                Hex(b + 0x00),                                   // level
+                Hex(b + 0x07), Hex(b + 0x08),                    // attack base, equip
+                Hex(b + 0x09), Hex(b + 0x0A),                    // defense base, equip
+                Hex(b + 0x0B), Hex(b + 0x0C),                    // agility base, equip
+                Hex(b + 0x0D), Hex(b + 0x0E),                    // move base, equip
+                Hex(b + 0x25),                                   // experience
+                Hex(b + 0x03), Hex(b + 0x01),                    // present HP, maximum HP
+                Hex(b + 0x06), Hex(b + 0x05),                    // present MP, maximum MP
+                new[] { Hex(b + 0x16), Hex(b + 0x18), Hex(b + 0x1A), Hex(b + 0x1C) },
+                new[] { Hex(b + 0x1D), Hex(b + 0x1E), Hex(b + 0x1F), Hex(b + 0x20) },
+                Hex(b + 0x27), Hex(b + 0x2B));                   // kills, defeats
+
         private void PopulateShiningForce2CharacterList()
         {
             shiningForce2CharacterCmb.Items.Clear();
-
-            ShiningForce2CharacterItem heroItem = new ShiningForce2CharacterItem("Bowie (Hero)",
-                "10C83",
-                "10C8A",
-                "10C8B",
-                "10C8C",
-                "10C8D",
-                "10C8E",
-                "10C8F",
-                "10C90",
-                "10C91",
-                "10CA8",
-                "10C86",
-                "10C84",
-                "10C89",
-                "10C88",
-                new string[] { "10C99", "10C98", "10C9D", "10C9F"},
-                new string[] { "10CA0", "10CA1", "10CA2", "10CA3"},
-                "10CAA", 
-                "10CAE");
-            shiningForce2CharacterCmb.Items.Add(heroItem);
-
-            ShiningForce2CharacterItem sarahItem = new ShiningForce2CharacterItem("Sarah",
-                "10CBB",
-                "10CC2",
-                "10CC3",
-                "10CC4",
-                "10CC5",
-                "10CC6",
-                "10CC7",
-                "10CC8",
-                "10CC9",
-                "10CE0",
-                "10CBE",
-                "10CBC",
-                "10CC1",
-                "10CC0",
-                new string[] { "10CD1", "10CD3", "10CD5", "10CD7" },
-                new string[] { "10CD8", "10CD9", "10CDA", "10CDB" },
-                "10CE2",
-                "10CE6");
-            shiningForce2CharacterCmb.Items.Add(sarahItem);
-
-            ShiningForce2CharacterItem chesterItem = new ShiningForce2CharacterItem("Chester",
-                "10CF3",
-                "10CFA",
-                "10CFB",
-                "10CFC",
-                "10CFD",
-                "10CFE",
-                "10CFF",
-                "10D00",
-                "10D01",
-                "10D18",
-                "10CF6",
-                "10CF4",
-                "10CF9",
-                "10CF8",
-                new string[] { "10D09", "10D0B", "10D0D", "10D0F" },
-                new string[] { "10D10", "10D11", "10D12", "10D13" },
-                "10D1A",
-                "10D1E");
-            shiningForce2CharacterCmb.Items.Add(chesterItem);
-
-            ShiningForce2CharacterItem jahaItem = new ShiningForce2CharacterItem("Jaha",
-                "10D2B",
-                "10D32",
-                "10D33",
-                "10D34",
-                "10D35",
-                "10D36",
-                "10D37",
-                "10D38",
-                "10D39",
-                "10D50",
-                "10D2E",
-                "10D2C",
-                "10D31",
-                "10D30",
-                new string[] { "10D41", "10D43", "10D45", "10D47" },
-                new string[] { "10D48", "10D49", "10D4A", "10D4B" },
-                "10D52",
-                "10D56");
-            shiningForce2CharacterCmb.Items.Add(jahaItem);
-
-            ShiningForce2CharacterItem kazinItem = new ShiningForce2CharacterItem("Kazin",
-                "10D63",
-                "10D6A",
-                "10D6B",
-                "10D6C",
-                "10D6D",
-                "10D6E",
-                "10D6F",
-                "10D70",
-                "10D71",
-                "10D88",
-                "10D66",
-                "10D64",
-                "10D69",
-                "10D68",
-                new string[] { "10D79", "10D7B", "10D7D", "10D7F" },
-                new string[] { "10D80", "10D81", "10D82", "10D83" },
-                "10D8A",
-                "10D8E");
-            shiningForce2CharacterCmb.Items.Add(kazinItem);
-
-            ShiningForce2CharacterItem sladeItem = new ShiningForce2CharacterItem("Slade",
-                "10D9B",
-                "10DA2",
-                "10DA3",
-                "10DA4",
-                "10DA5",
-                "10DA6",
-                "10DA7",
-                "10DA8",
-                "10DA9",
-                "10DC0",
-                "10D9E",
-                "10D9C",
-                "10DA1",
-                "10DA0",
-                new string[] { "10DB1", "10DB3", "10DB5", "10DB7" },
-                new string[] { "10DB8", "10DB9", "10DBA", "10DBB" },
-                "10DC2",
-                "10DC6");
-            shiningForce2CharacterCmb.Items.Add(sladeItem);
-
-            ShiningForce2CharacterItem kiwiItem = new ShiningForce2CharacterItem("Kiwi",
-                "10DD3",
-                "10DDA",
-                "10DDB",
-                "10DDC",
-                "10DDD",
-                "10DDE",
-                "10DDF",
-                "10DE0",
-                "10DE1",
-                "10DF8",
-                "10DD6",
-                "10DD4",
-                "10DD9",
-                "10DD8",
-                new string[] { "10DE9", "10DEB", "10DED", "10DEF" },
-                new string[] { "10DF0", "10DF1", "10DF2", "10DF3" },
-                "10DFA",
-                "10DFE");
-            shiningForce2CharacterCmb.Items.Add(kiwiItem);
-
-            ShiningForce2CharacterItem peterItem = new ShiningForce2CharacterItem("Peter",
-                "10E0B",
-                "10E12",
-                "10E13",
-                "10E14",
-                "10E15",
-                "10E16",
-                "10E17",
-                "10E18",
-                "10E19",
-                "10E30",
-                "10E0E",
-                "10E0C",
-                "10E11",
-                "10E10",
-                new string[] { "10E21", "10E23", "10E25", "10E27" },
-                new string[] { "10E28", "10E29", "10E2A", "10E2B" },
-                "10E32",
-                "10E36");
-            shiningForce2CharacterCmb.Items.Add(peterItem);
-
-            ShiningForce2CharacterItem mayItem = new ShiningForce2CharacterItem("May",
-                "10E43",
-                "10E4A",
-                "10E4B",
-                "10E4C",
-                "10E4D",
-                "10E4E",
-                "10E4F",
-                "10E50",
-                "10E51",
-                "10E68",
-                "10E46",
-                "10E44",
-                "10E49",
-                "10E48",
-                new string[] { "10E59", "10E5B", "10E5D", "10E5F" },
-                new string[] { "10E60", "10E61", "10E62", "10E63" },
-                "10E6A",
-                "10E6E");
-            shiningForce2CharacterCmb.Items.Add(mayItem);
-
-            ShiningForce2CharacterItem gerhaltItem = new ShiningForce2CharacterItem("Gerhalt",
-                "10E7B",
-                "10E82",
-                "10E83",
-                "10E84",
-                "10E85",
-                "10E86",
-                "10E87",
-                "10E88",
-                "10E89",
-                "10EA0",
-                "10E7E",
-                "10E7C",
-                "10E81",
-                "10E80",
-                new string[] { "10E91", "10E93", "10E95", "10E97" },
-                new string[] { "10E98", "10E99", "10E9A", "10E9B" },
-                "10EA2",
-                "10EA6");
-            shiningForce2CharacterCmb.Items.Add(gerhaltItem);
-
-            ShiningForce2CharacterItem lukeItem = new ShiningForce2CharacterItem("Luke",
-                "10EB3",
-                "10EBA",
-                "10EBB",
-                "10EBC",
-                "10EBD",
-                "10EBE",
-                "10EBF",
-                "10EC0",
-                "10EC1",
-                "10ED8",
-                "10EB6",
-                "10EB4",
-                "10EB9",
-                "10EB8",
-                new string[] { "10EC9", "10ECB", "10ECD", "10ECF" },
-                new string[] { "10ED0", "10ED1", "10ED2", "10ED3" },
-                "10EDA",
-                "10EDE");
-            shiningForce2CharacterCmb.Items.Add(lukeItem);
-
-            ShiningForce2CharacterItem rohdeItem = new ShiningForce2CharacterItem("Rohde",
-                "10EEB",
-                "10EF2",
-                "10EF3",
-                "10EF4",
-                "10EF5",
-                "10EF6",
-                "10EF7",
-                "10EF8",
-                "10EF9",
-                "10F10",
-                "10EEE",
-                "10EEC",
-                "10EF1",
-                "10EF0",
-                new string[] { "10F01", "10F03", "10F05", "10F07" },
-                new string[] { "10F08", "10F09", "10F0A", "10F0B" },
-                "10F12",
-                "10F16");
-            shiningForce2CharacterCmb.Items.Add(rohdeItem);
-
-            ShiningForce2CharacterItem rickItem = new ShiningForce2CharacterItem("Rick",
-                "10F23",
-                "10F2A",
-                "10F2B",
-                "10F2C",
-                "10F2D",
-                "10F2E",
-                "10F2F",
-                "10F30",
-                "10F31",
-                "10F48",
-                "10F26",
-                "10F24",
-                "10F29",
-                "10F28",
-                new string[] { "10F39", "10F3B", "10F3D", "10F3F" },
-                new string[] { "10F40", "10F41", "10F42", "10F43" },
-                "10F4A",
-                "10F4E");
-            shiningForce2CharacterCmb.Items.Add(rickItem);
-
-            ShiningForce2CharacterItem elricItem = new ShiningForce2CharacterItem("Elric",
-                "10F5B",
-                "10F62",
-                "10F63",
-                "10F64",
-                "10F65",
-                "10F66",
-                "10F67",
-                "10F68",
-                "10F69",
-                "10F80",
-                "10F5E",
-                "10F5C",
-                "10F61",
-                "10F60",
-                new string[] { "10F71", "10F73", "10F75", "10F77" },
-                new string[] { "10F78", "10F79", "10F7A", "10F7B" },
-                "10F82",
-                "10F86");
-            shiningForce2CharacterCmb.Items.Add(elricItem);
-
-            ShiningForce2CharacterItem ericItem = new ShiningForce2CharacterItem("Eric",
-                "10F93",
-                "10F9A",
-                "10F9B",
-                "10F9C",
-                "10F9D",
-                "10F9E",
-                "10F9F",
-                "10FA0",
-                "10FA1",
-                "10FB8",
-                "10F96",
-                "10F94",
-                "10F99",
-                "10F98",
-                new string[] { "10FA9", "10FAB", "10FAD", "10FAF" },
-                new string[] { "10FB0", "10FB1", "10FB2", "10FB3" },
-                "10FBA",
-                "10FBE");
-            shiningForce2CharacterCmb.Items.Add(ericItem);
-
-            ShiningForce2CharacterItem karnaItem = new ShiningForce2CharacterItem("Karna",
-                "10FCB",
-                "10FD2",
-                "10FD3",
-                "10FD4",
-                "10FD5",
-                "10FD6",
-                "10FD7",
-                "10FD8",
-                "10FD9",
-                "10FF0",
-                "10FCE",
-                "10FCC",
-                "10FD1",
-                "10FD0",
-                new string[] { "10FE1", "10FE3", "10FE5", "10FE7" },
-                new string[] { "10FE8", "10FE9", "10FEA", "10FEB" },
-                "10FF2",
-                "10FF6");
-            shiningForce2CharacterCmb.Items.Add(karnaItem);
-
-            ShiningForce2CharacterItem randolfItem = new ShiningForce2CharacterItem("Randolf",
-                "11003",
-                "1100A",
-                "1100B",
-                "1100C",
-                "1100D",
-                "1100E",
-                "1100F",
-                "11010",
-                "11011",
-                "11028",
-                "11006",
-                "11004",
-                "11009",
-                "11008",
-                new string[] { "11019", "1101B", "1101D", "1101F" },
-                new string[] { "11020", "11021", "11022", "11023" },
-                "1102A",
-                "1102E");
-            shiningForce2CharacterCmb.Items.Add(randolfItem);
-
-            ShiningForce2CharacterItem tyrinItem = new ShiningForce2CharacterItem("Tyrin",
-                "1103B",
-                "11042",
-                "11043",
-                "11044",
-                "11045",
-                "11046",
-                "11047",
-                "11048",
-                "11049",
-                "11060",
-                "1103E",
-                "1103C",
-                "11041",
-                "11040",
-                new string[] { "11051", "11053", "11055", "11057" },
-                new string[] { "11058", "11059", "1105A", "1105B" },
-                "11062",
-                "11066");
-            shiningForce2CharacterCmb.Items.Add(tyrinItem);
-
-            ShiningForce2CharacterItem janetItem = new ShiningForce2CharacterItem("Janet",
-                "11073",
-                "1107A",
-                "1107B",
-                "1107C",
-                "1107D",
-                "1107E",
-                "1107F",
-                "11080",
-                "11081",
-                "11098",
-                "11076",
-                "11074",
-                "11079",
-                "11078",
-                new string[] { "11089", "1108B", "1108D", "1108F" },
-                new string[] { "11090", "11091", "11092", "11093" },
-                "1109A",
-                "1109E");
-            shiningForce2CharacterCmb.Items.Add(janetItem);
-
-            ShiningForce2CharacterItem higinsItem = new ShiningForce2CharacterItem("Higins",
-                "110AB",
-                "110B2",
-                "110B3",
-                "110B4",
-                "110B5",
-                "110B6",
-                "110B7",
-                "110B8",
-                "110B9",
-                "110D0",
-                "110AE",
-                "110AC",
-                "110B1",
-                "110B0",
-                new string[] { "110C1", "110C3", "110C5", "110C7" },
-                new string[] { "110C8", "110C9", "110CA", "110CB" },
-                "110D2",
-                "110D6");
-            shiningForce2CharacterCmb.Items.Add(higinsItem);
-
             shiningForce2CharacterCmb.DisplayMember = "Name";
+
+            // Each character record is 0x38 bytes; fields sit at fixed sub-offsets.
+            string[] names =
+            {
+                "Bowie (Hero)", "Sarah", "Chester", "Jaha", "Kazin", "Slade", "Kiwi", "Peter",
+                "May", "Gerhalt", "Luke", "Rohde", "Rick", "Elric", "Eric", "Karna", "Randolf",
+                "Tyrin", "Janet", "Higins"
+            };
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                shiningForce2CharacterCmb.Items.Add(MakeSf2Char(names[i], 0x10C83 + i * 0x38));
+            }
+
+            // Preserve original data: Bowie's 2nd item slot is at +0x15, unlike every
+            // other character's +0x18 (appears to be a typo in the source data).
+            ((ShiningForce2CharacterItem)shiningForce2CharacterCmb.Items[0]).ItemsOffset[1] = Hex(0x10C83 + 0x15);
         }
 
         private void PopulateShiningForce2ItemsList()
@@ -3134,16 +2361,22 @@ namespace ShiningEditor
 
         private void LogError(string errMsg)
         {
-            // Create a write and open the file
-            string filePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-            filePath += @"\errorlog.txt";
-            TextWriter writer = new StreamWriter(filePath, true);
+            // Never let logging throw — it is called from catch blocks, so a failure
+            // here (e.g. a read-only install directory) must not crash the app.
+            try
+            {
+                string filePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                filePath += @"\errorlog.txt";
 
-            // Write the error message to the error log
-            writer.WriteLine(errMsg + " Added: " + DateTime.Now.ToString());
-
-            // Close the stream
-            writer.Close();
+                using (TextWriter writer = new StreamWriter(filePath, true))
+                {
+                    writer.WriteLine(errMsg + " Added: " + DateTime.Now.ToString());
+                }
+            }
+            catch
+            {
+                // Swallow: logging is best-effort.
+            }
         }
 
         private void ClearErrorLog()
@@ -3183,500 +2416,340 @@ namespace ShiningEditor
             _sfcdClassTable = null;
         }
 
-        private string GetValueByOffset(string offset, int bytesToRead)
+        /// <summary>
+        /// Validates that the chosen file is a Kega Fusion save state ("GST" header) of
+        /// the size expected for the selected game's console. This prevents editing the
+        /// wrong file at hardcoded offsets, which would silently corrupt a save.
+        /// </summary>
+        private bool ValidateSaveStateFile(string path, out string error)
         {
-            string value = string.Empty;
-            BinaryReader reader = null;
+            error = null;
+
+            FileInfo info;
+            try
+            {
+                info = new FileInfo(path);
+            }
+            catch (Exception ex)
+            {
+                error = "The selected file could not be accessed: " + ex.Message;
+                return false;
+            }
+
+            if (!info.Exists)
+            {
+                error = "The selected file no longer exists.";
+                return false;
+            }
+
+            bool isSegaCd = ActivePanel == AppPanel.ShiningForceCD;
+            long expectedSize = isSegaCd ? GST_SIZE_SEGA_CD : GST_SIZE_GENESIS;
+            string console = isSegaCd ? "Sega CD" : "Genesis";
+
+            byte[] header = new byte[GST_MAGIC.Length];
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    fs.Read(header, 0, header.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                error = "The selected file could not be read: " + ex.Message;
+                return false;
+            }
+
+            if (!header.SequenceEqual(GST_MAGIC))
+            {
+                error = "This is not a Kega Fusion save state (its header is missing the \"GST\" signature).";
+                return false;
+            }
+
+            if (info.Length != expectedSize)
+            {
+                error = $"This does not look like a {console} save state for {GetSelectedGameTitle()}." +
+                        $"{Environment.NewLine}{Environment.NewLine}" +
+                        $"Expected size: {expectedSize:N0} bytes{Environment.NewLine}" +
+                        $"Selected file: {info.Length:N0} bytes{Environment.NewLine}{Environment.NewLine}" +
+                        "Make sure you picked the correct save state for this game.";
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Copies the save state to "&lt;path&gt;.bak" once per session before the first
+        /// edit, so the pre-edit state can always be recovered.
+        /// </summary>
+        private void EnsureBackup(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path) || _backedUpThisSession.Contains(path))
+                {
+                    return;
+                }
+
+                File.Copy(path, path + ".bak", true);
+                _backedUpThisSession.Add(path);
+            }
+            catch (Exception ex)
+            {
+                LogError(ex.Message + " Occurred while creating a backup (.bak) of the save state file.");
+            }
+        }
+
+        // ── In-memory save-state buffer ──────────────────────────────────────
+        // The whole file is loaded once into _fileBytes; all reads and writes go
+        // through it, and each "Update Save State" flushes it to disk in a single
+        // write (instead of re-opening the file for every field).
+        private byte[] _fileBytes;
+        private string _loadedPath;
+        private long _loadedLength;
+        private DateTime _loadedWriteTime;
+
+        private static int ParseOffset(string offset) =>
+            int.Parse(offset, System.Globalization.NumberStyles.HexNumber);
+
+        /// <summary>Ensures _fileBytes holds the contents of the file named in the path box.</summary>
+        private bool EnsureBufferLoaded()
+        {
+            string path = saveStateFileTb.Text;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                return false;
+            }
 
             try
             {
-                reader = new BinaryReader(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                // Set the position of the reader by the offset
-                reader.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                // Read the offset
-                value = BitConverter.ToString(reader.ReadBytes(bytesToRead)).Replace("-", null);
+                var info = new FileInfo(path);
+
+                // Re-read when the path changes, and also when the file's size or
+                // timestamp has moved underneath us. The emulator may write a new save
+                // state to the same path while this window sits open, and flushing a
+                // stale buffer over it would silently discard that save.
+                if (_fileBytes != null
+                    && string.Equals(_loadedPath, path, StringComparison.OrdinalIgnoreCase)
+                    && _loadedLength == info.Length
+                    && _loadedWriteTime == info.LastWriteTimeUtc)
+                {
+                    return true;
+                }
+
+                _fileBytes = File.ReadAllBytes(path);
+                _loadedPath = path;
+                _loadedLength = info.Length;
+                _loadedWriteTime = info.LastWriteTimeUtc;
+                return true;
             }
-            catch (IOException ioe)
+            catch (Exception e)
             {
-                LogError(ioe.Message + " Occurred when attempting to read a value by its offset.");
+                LogError(e.Message + " Occurred while loading the save state into memory.");
+                _fileBytes = null;
+                _loadedPath = null;
+                return false;
             }
-            catch (ArgumentException aue)
+        }
+
+        /// <summary>Writes the in-memory buffer back to disk in a single operation.</summary>
+        private bool SaveBufferToDisk()
+        {
+            if (_fileBytes == null || string.IsNullOrEmpty(_loadedPath))
             {
-                LogError(aue.Message + " Occurred when attempting to read a value by its offset.");
+                return false;
+            }
+
+            try
+            {
+                File.WriteAllBytes(_loadedPath, _fileBytes);
+
+                // Adopt the timestamp we just created, so the staleness check in
+                // EnsureBufferLoaded does not mistake our own write for someone else's.
+                var info = new FileInfo(_loadedPath);
+                _loadedLength = info.Length;
+                _loadedWriteTime = info.LastWriteTimeUtc;
+                return true;
+            }
+            catch (Exception e)
+            {
+                LogError(e.Message + " Occurred while saving the save state to disk.");
+                MessageBox.Show("The save state could not be written to disk. See the error log for details.",
+                    "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>Copies <paramref name="count"/> bytes from source[index..] into the buffer at offset.</summary>
+        private bool WriteBytes(int offset, byte[] source, int index, int count)
+        {
+            if (!EnsureBufferLoaded())
+            {
+                return false;
+            }
+
+            if (offset < 0 || count < 0 || index < 0
+                || offset + count > _fileBytes.Length || index + count > source.Length)
+            {
+                LogError($"Refused out-of-range write at offset 0x{offset:X} ({count} bytes).");
+                return false;
+            }
+
+            Buffer.BlockCopy(source, index, _fileBytes, offset, count);
+            return true;
+        }
+
+        private string GetValueByOffset(string offset, int bytesToRead)
+        {
+            if (!EnsureBufferLoaded())
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                return BitConverter.ToString(_fileBytes, ParseOffset(offset), bytesToRead).Replace("-", null);
             }
             catch (Exception e)
             {
                 LogError(e.Message + " Occurred when attempting to read a value by its offset.");
+                return string.Empty;
             }
-            finally
-            {
-                reader.Close();
-                reader.Dispose();
-            }
-
-            return value;
         }
 
-        private byte[] GetBytesByOffset(string offset, int bytesToRead)
-        {
-            using var reader = new BinaryReader(
-                new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read)
-            );
-
-            reader.BaseStream.Position =
-                long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-
-            return reader.ReadBytes(bytesToRead);
-        }
+        private byte[] GetBytesByOffset(string offset, int bytesToRead) =>
+            GetBytesByOffset(ParseOffset(offset), bytesToRead);
 
         private byte[] GetBytesByOffset(int offset, int length)
         {
-            using var fs = new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-
-            fs.Position = offset;
-
-            byte[] buffer = new byte[length];
-            int read = fs.Read(buffer, 0, length);
-
-
-            if (read != length)
+            if (!EnsureBufferLoaded() || offset < 0 || offset >= _fileBytes.Length)
             {
-                Array.Resize(ref buffer, read);
+                return Array.Empty<byte>();
             }
 
+            int available = Math.Min(length, _fileBytes.Length - offset);
+            byte[] buffer = new byte[available];
+            Buffer.BlockCopy(_fileBytes, offset, buffer, 0, available);
             return buffer;
         }
 
 
+        // Genesis/Sega CD saves are big-endian, so multi-byte values are reversed
+        // before writing. Each overload builds its bytes and routes through WriteBytes.
         private bool SetValueByOffset(string value, string offset)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                int valNum = Convert.ToInt32(value);
-                byte[] bytes = BitConverter.GetBytes(valNum).Reverse().ToArray();
-                writer.Write(bytes);
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(Convert.ToInt32(value)).Reverse().ToArray();
+            return WriteBytes(ParseOffset(offset), bytes, 0, 4);
         }
 
         private bool SetValueByOffset(long value, string offset)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                writer.Write(bytes);
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return WriteBytes(ParseOffset(offset), bytes, 0, 8);
         }
 
         private bool SetValueByOffset(int value, string offset, int numBytes = 0)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                if (numBytes == 0)
-                {
-                    writer.Write(bytes);
-                }
-                else
-                {
-                    writer.Write(bytes, 1, numBytes);
-                }
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return numBytes == 0
+                ? WriteBytes(ParseOffset(offset), bytes, 0, 4)
+                : WriteBytes(ParseOffset(offset), bytes, 1, numBytes);
         }
 
         private bool SetValueByOffset(short value, string offset, int index = 0, int numBytes = 0)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-                if (numBytes == 0 && index == 0)
-                {
-                    writer.Write(bytes);
-                }
-                else
-                {
-                    writer.Write(bytes, index, numBytes);
-                }
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return (numBytes == 0 && index == 0)
+                ? WriteBytes(ParseOffset(offset), bytes, 0, 2)
+                : WriteBytes(ParseOffset(offset), bytes, index, numBytes);
         }
 
         private bool SetValueByOffset(ushort value, string offset, int index = 0, int numBytes = 0)
         {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
-
-                if (numBytes == 0)
-                {
-                    writer.Write(bytes);
-                }
-                else
-                {
-                    writer.Write(bytes, index, numBytes);
-                }
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
+            byte[] bytes = BitConverter.GetBytes(value).Reverse().ToArray();
+            return numBytes == 0
+                ? WriteBytes(ParseOffset(offset), bytes, 0, 2)
+                : WriteBytes(ParseOffset(offset), bytes, index, numBytes);
         }
 
         private bool SetUInt32BigEndianByOffset(uint value, string offset)
         {
-            try
+            byte[] bytes = BitConverter.GetBytes(value);
+            if (BitConverter.IsLittleEndian)
             {
-                using (var stream = new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Write, FileShare.Read))
-                using (var writer = new BinaryWriter(stream))
-                {
-                    writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-
-                    // Convert to bytes
-                    byte[] bytes = BitConverter.GetBytes(value);
-
-                    // Save is big-endian, so reverse on little-endian machines (Windows)
-                    if (BitConverter.IsLittleEndian)
-                    {
-                        Array.Reverse(bytes);
-                    }
-
-                    writer.Write(bytes); // 4 bytes
-                }
-
-                return true;
+                Array.Reverse(bytes);   // save is big-endian
             }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write gold to the save state file.");
-                return false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write gold to the save state file.");
-                return false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write gold to the save state file.");
-                return false;
-            }
+            return WriteBytes(ParseOffset(offset), bytes, 0, 4);
         }
 
-        private bool SetByteByOffset(byte value, string offset)
-        {
-            try
-            {
-                using (var writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open, FileAccess.Write, FileShare.Read)))
-                {
-                    writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                    writer.Write(value);
-                    return true;
-                }
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a byte to the save state file.");
-                return false;
-            }
-        }
+        private bool SetByteByOffset(byte value, string offset) =>
+            WriteBytes(ParseOffset(offset), new[] { value }, 0, 1);
 
-        private bool SetValueByOffset(byte value, string offset)
-        {
-            bool success = false;
-            BinaryWriter writer = null;
-
-            try
-            {
-                writer = new BinaryWriter(new FileStream(saveStateFileTb.Text, FileMode.Open));
-                writer.BaseStream.Position = long.Parse(offset, System.Globalization.NumberStyles.HexNumber);
-                writer.Write(value);
-
-                success = true;
-            }
-            catch (IOException ioe)
-            {
-                LogError(ioe.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (ArgumentException aue)
-            {
-                LogError(aue.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            catch (Exception e)
-            {
-                LogError(e.Message + " Occurred while attempting to write a value to the save state file.");
-                success = false;
-            }
-            finally
-            {
-                writer.Close();
-                writer.Dispose();
-            }
-
-            return success;
-        }
+        private bool SetValueByOffset(byte value, string offset) =>
+            WriteBytes(ParseOffset(offset), new[] { value }, 0, 1);
 
         private void UpdateShiningSaveState()
         {
+            if (!EnsureBufferLoaded())
+            {
+                return;   // no valid save state loaded
+            }
+
+            EnsureBackup(saveStateFileTb.Text);
             ShiningCharacterItem charItem = shiningCharacterCmb.SelectedItem as ShiningCharacterItem;
-            if (shiningNewGoldTb.Text != string.Empty)
+            if (TryReadField(shiningNewGoldTb, "Gold", 0, 4294967295, out long gold1))
             {
-                int gold = 0;
-                if (int.TryParse(shiningNewGoldTb.Text, out gold))
-                {
-                    SetValueByOffset(gold, SHINING_GOLD_LOC);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((int)gold1, SHINING_GOLD_LOC);
             }
 
-            if (shiningNewExpTb.Text != string.Empty)
+            if (TryReadField(shiningNewExpTb, "Experience", 0, 4294967295, out long exp2))
             {
-                int exp = 0;
-                if (int.TryParse(shiningNewExpTb.Text, out exp))
-                {
-                    SetValueByOffset(exp, charItem.ExpLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((int)exp2, charItem.ExpLoc);
             }
 
-            if (shiningNewCurHPTb.Text != string.Empty)
+            if (TryReadField(shiningNewCurHPTb, "Current HP", 0, 65535, out long hp3))
             {
-                short hp = 0;
-                if (short.TryParse(shiningNewCurHPTb.Text, out hp))
-                {
-                    SetValueByOffset(hp, charItem.CurHPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new current HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)hp3, charItem.CurHPLoc);
             }
 
-            if (shiningNewMaxHPTb.Text != string.Empty)
+            if (TryReadField(shiningNewMaxHPTb, "Max HP", 0, 65535, out long hp4))
             {
-                short hp = 0;
-                if (short.TryParse(shiningNewMaxHPTb.Text, out hp))
-                {
-                    SetValueByOffset(hp, charItem.MaxHPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)hp4, charItem.MaxHPLoc);
             }
 
-            if (shiningNewCurMPTb.Text != string.Empty)
+            if (TryReadField(shiningNewCurMPTb, "Current MP", 0, 65535, out long tp5))
             {
-                short tp = 0;
-                if (short.TryParse(shiningNewCurMPTb.Text, out tp))
-                {
-                    SetValueByOffset(tp, charItem.CurMPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new current MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)tp5, charItem.CurMPLoc);
             }
 
-            if (shiningNewMaxMPTb.Text != string.Empty)
+            if (TryReadField(shiningNewMaxMPTb, "Max MP", 0, 65535, out long tp6))
             {
-                short tp = 0;
-                if (short.TryParse(shiningNewMaxMPTb.Text, out tp))
-                {
-                    SetValueByOffset(tp, charItem.MaxMPLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)tp6, charItem.MaxMPLoc);
             }
 
-            if (shiningNewIQTb.Text != string.Empty)
+            if (TryReadField(shiningNewIQTb, "IQ", 0, 65535, out long str7))
             {
-                short str = 0;
-                if (short.TryParse(shiningNewIQTb.Text, out str))
-                {
-                    SetValueByOffset(str, charItem.IQLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new IQ value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)str7, charItem.IQLoc);
             }
 
-            if (shiningNewLuckTb.Text != string.Empty)
+            if (TryReadField(shiningNewLuckTb, "Luck", 0, 65535, out long str8))
             {
-                short str = 0;
-                if (short.TryParse(shiningNewLuckTb.Text, out str))
-                {
-                    SetValueByOffset(str, charItem.LuckLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new luck value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)str8, charItem.LuckLoc);
             }
 
-            if (shiningNewAttackTb.Text != string.Empty)
+            if (TryReadField(shiningNewAttackTb, "Attack", 0, 65535, out long str9))
             {
-                short str = 0;
-                if (short.TryParse(shiningNewAttackTb.Text, out str))
-                {
-                    SetValueByOffset(str, charItem.AttackLoc);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new attack value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetValueByOffset((short)str9, charItem.AttackLoc);
+            }
+
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            ResetShiningControls(false);
+            ResetShiningControls(false, true);
             PopulateShiningCurrentGold();
             PopulateShiningCharacterDetails(charItem);
         }
@@ -3693,138 +2766,69 @@ namespace ShiningEditor
 
         private void UpdateShiningForceSaveState()
         {
-            ShiningForceCharacterItem charItem = shiningForceCharacterCmb.SelectedItem as ShiningForceCharacterItem;
-            if (shiningForceNewGoldTb.Text != string.Empty)
+            if (!EnsureBufferLoaded())
             {
-                int gold = 0;
-                if (int.TryParse(shiningForceNewGoldTb.Text, out gold))
-                {
-                    SetValueByOffset(gold, SHINING_FORCE_GOLD_LOC, 3);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                return;   // no valid save state loaded
+            }
+
+            EnsureBackup(saveStateFileTb.Text);
+            ShiningForceCharacterItem charItem = shiningForceCharacterCmb.SelectedItem as ShiningForceCharacterItem;
+            if (TryReadField(shiningForceNewGoldTb, "Gold", 0, 16777215, out long gold10))
+            {
+                SetValueByOffset((int)gold10, SHINING_FORCE_GOLD_LOC, 3);
             }
 
             if (charItem != null)
             {
-                if (shiningForceNewAttackTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewAttackTb, "Attack", 0, 255, out long attack11))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForceNewAttackTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack11, charItem.AttackLoc, 1, 1);
                 }
 
-                if (shiningForceNewDefenseTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewDefenseTb, "Defense", 0, 255, out long defense12))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForceNewDefenseTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense12, charItem.DefenseLoc, 1, 1);
                 }
 
-                if (shiningForceNewAgilityTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewAgilityTb, "Agility", 0, 255, out long agility13))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForceNewAgilityTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility13, charItem.AgilityLoc, 1, 1);
                 }
 
-                if (shiningForceNewMoveTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewMoveTb, "Move", 0, 255, out long move14))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForceNewMoveTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move14, charItem.MoveLoc, 1, 1);
                 }
 
-                if (shiningForceNewExpTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewExpTb, "Experience", 0, 255, out long exp15))
                 {
-                    short exp = 0;
-                    if (short.TryParse(shiningForceNewExpTb.Text, out exp))
-                    {
-                        SetValueByOffset(exp, charItem.ExperienceLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)exp15, charItem.ExperienceLoc, 1, 1);
                 }
 
-                if (shiningForceNewCurHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewCurHPTb, "Current HP", 0, 255, out long hp16))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForceNewCurHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.CurrentHPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new current HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp16, charItem.CurrentHPLoc, 1, 1);
                 }
 
-                if (shiningForceNewMaxHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewMaxHPTb, "Max HP", 0, 255, out long maxHP17))
                 {
-                    short maxHP = 0;
-                    if (short.TryParse(shiningForceNewMaxHPTb.Text, out maxHP))
-                    {
-                        SetValueByOffset(maxHP, charItem.MaxHPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)maxHP17, charItem.MaxHPLoc, 1, 1);
                 }
 
-                if (shiningForceNewCurMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewCurMPTb, "Current MP", 0, 255, out long mp18))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForceNewCurMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.CurrentMPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new curent MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp18, charItem.CurrentMPLoc, 1, 1);
                 }
 
-                if (shiningForceNewMaxMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceNewMaxMPTb, "Max MP", 0, 255, out long maxMP19))
                 {
-                    short maxMP = 0;
-                    if (short.TryParse(shiningForceNewMaxMPTb.Text, out maxMP))
-                    {
-                        SetValueByOffset(maxMP, charItem.MaxMPLoc, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)maxMP19, charItem.MaxMPLoc, 1, 1);
                 }
+            }
+
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -3849,190 +2853,89 @@ namespace ShiningEditor
 
         private void UpdateShiningForce2SaveState()
         {
-            ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
-            if (shiningForce2NewGoldTb.Text != string.Empty)
+            if (!EnsureBufferLoaded())
             {
-                ushort gold = 0;
-                if (ushort.TryParse(shiningForce2NewGoldTb.Text, out gold))
-                {
-                    SetValueByOffset(gold, SHINING_FORCE_2_GOLD_LOC, 0, 2);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value that doesn't exceed 65535.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                return;   // no valid save state loaded
+            }
+
+            EnsureBackup(saveStateFileTb.Text);
+            ShiningForce2CharacterItem charItem = shiningForce2CharacterCmb.SelectedItem as ShiningForce2CharacterItem;
+            if (TryReadField(shiningForce2NewGoldTb, "Gold", 0, 65535, out long gold20))
+            {
+                SetValueByOffset((ushort)gold20, SHINING_FORCE_2_GOLD_LOC, 0, 2);
             }
 
             if (charItem != null)
             {
-                if (shiningForce2NewAttackBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAttackBaseTb, "Attack base", 0, 255, out long attack21))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForce2NewAttackBaseTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack21, charItem.AttackBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewAttackEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAttackEquipTb, "Attack equip", 0, 255, out long attack22))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForce2NewAttackEquipTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack22, charItem.AttackEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewDefenseBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewDefenseBaseTb, "Defense base", 0, 255, out long defense23))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForce2NewDefenseBaseTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense23, charItem.DefenseBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewDefenseEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewDefenseEquipTb, "Defense equip", 0, 255, out long defense24))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForce2NewDefenseEquipTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense24, charItem.DefenseEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewAgilityBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAgilityBaseTb, "Agility base", 0, 255, out long agility25))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForce2NewAgilityBaseTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility25, charItem.AgilityBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewAgilityEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewAgilityEquipTb, "Agility equip", 0, 255, out long agility26))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForce2NewAgilityEquipTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility26, charItem.AgilityEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewMoveBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMoveBaseTb, "Move base", 0, 255, out long move27))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForce2NewMoveBaseTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move27, charItem.MoveBaseOffset, 1, 1);
                 }
 
-                if (shiningForce2NewMoveEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMoveEquipTb, "Move equip", 0, 255, out long move28))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForce2NewMoveEquipTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move28, charItem.MoveEquipOffset, 1, 1);
                 }
 
-                if (shiningForce2NewExpTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewExpTb, "Experience", 0, 255, out long exp29))
                 {
-                    short exp = 0;
-                    if (short.TryParse(shiningForce2NewExpTb.Text, out exp))
-                    {
-                        SetValueByOffset(exp, charItem.ExperienceOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)exp29, charItem.ExperienceOffset, 1, 1);
                 }
 
-                if (shiningForce2NewPresentHPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewPresentHPTb, "Present HP", 0, 65535, out long hp30))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForce2NewPresentHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.PresentHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp30, charItem.PresentHPOffset, 0, 0);
                 }
 
-                if (shiningForce2NewMaxHPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMaxHPTb, "Max HP", 0, 65535, out long hp31))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForce2NewMaxHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.MaximumHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp31, charItem.MaximumHPOffset, 0, 0);
                 }
 
-                if (shiningForce2NewPresentMPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewPresentMPTb, "Present MP", 0, 255, out long mp32))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForce2NewPresentMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.PresentMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp32, charItem.PresentMPOffset, 1, 1);
                 }
 
-                if (shiningForce2NewMaxMPTb.Text != string.Empty)
+                if (TryReadField(shiningForce2NewMaxMPTb, "Pmax MP", 0, 255, out long mp33))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForce2NewMaxMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.MaximumMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new pmax MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp33, charItem.MaximumMPOffset, 1, 1);
                 }
+            }
+
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -4105,10 +3008,11 @@ namespace ShiningEditor
 
                 Hex(baseOffset + 0x26), // ExperienceOffset (1 byte)
 
-                Hex(baseOffset + 0x02), // PresentHPOffset (2 bytes)
-                Hex(baseOffset + 0x04), // MaximumHPOffset (2 bytes)
-                Hex(baseOffset + 0x06), // PresentMPOffset (1 byte)
-                Hex(baseOffset + 0x07), // MaximumMPOffset (1 byte)
+                // Max comes first in the record, then present - same ordering as Shining Force 2.
+                Hex(baseOffset + 0x04), // PresentHPOffset (2 bytes)
+                Hex(baseOffset + 0x02), // MaximumHPOffset (2 bytes)
+                Hex(baseOffset + 0x07), // PresentMPOffset (1 byte)
+                Hex(baseOffset + 0x06), // MaximumMPOffset (1 byte)
 
                 // ITEMS: skip the first pair at base+0x14..0x15
                 // real 4 inventory slots are the next 4 ID bytes:
@@ -4175,8 +3079,12 @@ namespace ShiningEditor
 
             _sfcdClassTableLoadedFromPath = path;
 
-            // Read file once (it's ~1.1MB; totally fine)
-            byte[] all = File.ReadAllBytes(path);
+            // Read from the in-memory buffer (loaded once).
+            if (!EnsureBufferLoaded())
+            {
+                return;
+            }
+            byte[] all = _fileBytes;
 
             // Find the signature: 04 SDMN 04 HERO 04 KNTE 04 PLDN
             int start = FindClassTableOffsetBySignature(all);
@@ -4253,190 +3161,90 @@ namespace ShiningEditor
 
         private void UpdateShiningForceCDSaveState()
         {
+            if (!EnsureBufferLoaded())
+            {
+                return;   // no valid save state loaded
+            }
+
+            EnsureBackup(saveStateFileTb.Text);
             ShiningForceCDCharacterItem charItem = shiningForceCDSelectCharacterCmb.SelectedItem as ShiningForceCDCharacterItem;
 
-            if (!string.IsNullOrEmpty(shiningForceCDNewGoldTb.Text))
+            if (TryReadField(shiningForceCDNewGoldTb, "Gold", 0, 4294967295, out long newGold34))
             {
-                if (uint.TryParse(shiningForceCDNewGoldTb.Text, out var newGold))
-                {
-                    SetUInt32BigEndianByOffset(newGold, SHINING_FORCE_CD_GOLD_LOC);
-                }
-                else
-                {
-                    MessageBox.Show("You must enter a numeric value for the new gold value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                SetUInt32BigEndianByOffset((uint)newGold34, SHINING_FORCE_CD_GOLD_LOC);
             }
 
             if (charItem != null)
             {
-                if (shiningForceCDNewAttackBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAttackBaseTb, "Attack base", 0, 255, out long attack35))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForceCDNewAttackBaseTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack35, charItem.AttackBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewAttackEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAttackEquipTb, "Attack equip", 0, 255, out long attack36))
                 {
-                    short attack = 0;
-                    if (short.TryParse(shiningForceCDNewAttackEquipTb.Text, out attack))
-                    {
-                        SetValueByOffset(attack, charItem.AttackEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new attack equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)attack36, charItem.AttackEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewDefenseBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewDefenseBaseTb, "Defense base", 0, 255, out long defense37))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForceCDNewDefenseBaseTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense37, charItem.DefenseBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewDefenseEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewDefenseEquipTb, "Defense equip", 0, 255, out long defense38))
                 {
-                    short defense = 0;
-                    if (short.TryParse(shiningForceCDNewDefenseEquipTb.Text, out defense))
-                    {
-                        SetValueByOffset(defense, charItem.DefenseEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new defense equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)defense38, charItem.DefenseEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewAgilityBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAgilityBaseTb, "Agility base", 0, 255, out long agility39))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForceCDNewAgilityBaseTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility39, charItem.AgilityBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewAgilityEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewAgilityEquipTb, "Agility equip", 0, 255, out long agility40))
                 {
-                    short agility = 0;
-                    if (short.TryParse(shiningForceCDNewAgilityEquipTb.Text, out agility))
-                    {
-                        SetValueByOffset(agility, charItem.AgilityEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new agility equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)agility40, charItem.AgilityEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewMoveBaseTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMoveBaseTb, "Move base", 0, 255, out long move41))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForceCDNewMoveBaseTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveBaseOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move base value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move41, charItem.MoveBaseOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewMoveEquipTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMoveEquipTb, "Move equip", 0, 255, out long move42))
                 {
-                    short move = 0;
-                    if (short.TryParse(shiningForceCDNewMoveEquipTb.Text, out move))
-                    {
-                        SetValueByOffset(move, charItem.MoveEquipOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new move equip value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)move42, charItem.MoveEquipOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewExperienceTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewExperienceTb, "Experience", 0, 255, out long exp43))
                 {
-                    short exp = 0;
-                    if (short.TryParse(shiningForceCDNewExperienceTb.Text, out exp))
-                    {
-                        SetValueByOffset(exp, charItem.ExperienceOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new experience value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)exp43, charItem.ExperienceOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewPresentHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewPresentHPTb, "Present HP", 0, 65535, out long hp44))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForceCDNewPresentHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.PresentHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp44, charItem.PresentHPOffset, 0, 0);
                 }
 
-                if (shiningForceCDNewMaxHPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMaxHPTb, "Max HP", 0, 65535, out long hp45))
                 {
-                    short hp = 0;
-                    if (short.TryParse(shiningForceCDNewMaxHPTb.Text, out hp))
-                    {
-                        SetValueByOffset(hp, charItem.MaximumHPOffset, 0, 0);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max HP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)hp45, charItem.MaximumHPOffset, 0, 0);
                 }
 
-                if (shiningForceCDNewPresentMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewPresentMPTb, "Present MP", 0, 255, out long mp46))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForceCDNewPresentMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.PresentMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new present MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp46, charItem.PresentMPOffset, 1, 1);
                 }
 
-                if (shiningForceCDNewMaxMPTb.Text != string.Empty)
+                if (TryReadField(shiningForceCDNewMaxMPTb, "Max MP", 0, 255, out long mp47))
                 {
-                    short mp = 0;
-                    if (short.TryParse(shiningForceCDNewMaxMPTb.Text, out mp))
-                    {
-                        SetValueByOffset(mp, charItem.MaximumMPOffset, 1, 1);
-                    }
-                    else
-                    {
-                        MessageBox.Show("You must enter a numeric value for the new max MP value.", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    SetValueByOffset((short)mp47, charItem.MaximumMPOffset, 1, 1);
                 }
+            }
+
+            if (!SaveBufferToDisk())
+            {
+                return;   // write failed; SaveBufferToDisk already reported it
             }
 
             MessageBox.Show("The save state update process has completed.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
