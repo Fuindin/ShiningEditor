@@ -324,20 +324,56 @@ public sealed partial class MainForm : Form
         _itemList.DrawItem += (s, e) => DrawSlotRow(_itemList, e, "◆");
         _spellList.DrawItem += (s, e) => DrawSlotRow(_spellList, e, "✦");
 
-        DragEnter += (_, e) =>
+        // Drag events don't bubble from child controls to the form, and the form's
+        // surface is entirely covered by docked panels, so every control needs to
+        // accept the drop itself.
+        EnableFileDrop(this);
+    }
+
+    // ---- Drag & drop --------------------------------------------------------------
+
+    private void EnableFileDrop(Control control)
+    {
+        control.AllowDrop = true;
+        control.DragEnter += OnFileDragEnter;
+        control.DragOver += OnFileDragEnter;
+        control.DragDrop += OnFileDragDrop;
+
+        foreach (Control child in control.Controls)
         {
-            if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
+            EnableFileDrop(child);
+        }
+
+        // Controls created later (e.g. when switching games) get hooked too.
+        control.ControlAdded += (_, e) =>
+        {
+            if (e.Control is not null)
             {
-                e.Effect = DragDropEffects.Copy;
+                EnableFileDrop(e.Control);
             }
         };
-        DragDrop += (_, e) =>
+    }
+
+    private void OnFileDragEnter(object? sender, DragEventArgs e)
+    {
+        e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+    }
+
+    private void OnFileDragDrop(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
         {
-            if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
+            var path = files[0];
+            // Defer the load so any prompts/message boxes don't freeze Explorer
+            // while it waits for the drop to finish.
+            BeginInvoke(() =>
             {
-                LoadPath(files[0]);
-            }
-        };
+                Activate();
+                LoadPath(path);
+            });
+        }
     }
 
     // ---- Game selection -----------------------------------------------------------
