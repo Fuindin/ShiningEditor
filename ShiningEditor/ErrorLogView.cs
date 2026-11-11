@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -16,6 +16,7 @@ namespace ShiningEditor
         public ErrorLogView()
         {
             InitializeComponent();
+            Theme.ApplyDialog(this);
         }
 
         private void ErrorLogView_Load(object sender, EventArgs e)
@@ -28,11 +29,10 @@ namespace ShiningEditor
             string logText = string.Empty;
 
             // Create error log path
-            string filePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-            filePath += @"\errorlog.txt";
+            string filePath = Game.Log.FilePath;
 
             // Create reader object
-            TextReader reader = null;
+            TextReader? reader = null;
 
             // Make sure file exists
             if (File.Exists(filePath))
